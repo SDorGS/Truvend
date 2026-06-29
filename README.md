@@ -163,6 +163,100 @@ Checkout disabled until risks are resolved.
 
 ---
 
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 15, React, TypeScript, Tailwind CSS |
+| Backend | Node.js, Express, TypeScript |
+| Database | Supabase (PostgreSQL) |
+| AI | Google Gemini 1.5 Flash |
+| Payments | Nomba Checkout API, Virtual Accounts, Webhooks |
+| Security | API Rate Limiting, Encrypted Payloads, Adversarial Input Filtering |
+
+---
+
+## Expected Impact
+
+Our goals within six months include:
+
+•  Buyer conversion rate >45%
+
+•  Fraud disputes <2%
+
+•  Vendor retention >70%
+
+•  Checkout abandonment <25%
+
+•  Higher average transaction values
+
+By improving trust, Truvend helps legitimate sellers grow while protecting buyers from fraud.  
+---
+
+## Vision
+
+To become Africa’s most trusted social commerce infrastructure, making every online transaction safer, smarter, and more transparent.
+
+---
+
+## Team
+
+### Project Manager
+
+Ibrahim Ashiah Ajoke
+
+### Backend Developer
+
+Emmanuel Olayinka
+
+### Frontend Developer
+
+Solomon Daniel
+
+### Cybersecurity (Penetration Tester)
+
+Rasaq Ayomide
+
+---
+
+## Future Roadmap
+
+• AI seller reputation profiles
+
+• OCR receipt verification
+
+• Logistics partner integration
+
+• Wallet & refunds
+
+• Multi-country expansion
+
+• Advanced fraud analytics
+
+• Admin moderation dashboard
+
+---
+
+## Built For
+
+Nomba × DevCareer Hackathon 2026
+
+---
+
+## License
+
+This project is developed for educational and hackathon purposes.
+
+
+
+
+
+
+
+
+
+
+
 
 
 
