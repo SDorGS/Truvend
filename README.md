@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="IMG_1601.jpeg" alt="Truvend Banner" width="100%">
+</p>
+
+--- 
+
 ## Truvend
 
 ### Trade with Trust.
