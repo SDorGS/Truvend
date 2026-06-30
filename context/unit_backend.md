@@ -8,7 +8,7 @@ Commit format: `feat(U#.#): short description`
 
 ## Phase 0: Project Setup
 
-- [ ] **Unit 0.1: .gitignore**
+- [x] **Unit 0.1: .gitignore**
   - Add `.gitignore` at repo root covering `node_modules`, `.env`, `.env.local`, `.next`, `dist`, `.DS_Store`.
   - Everything else in Phase 0 (repo init, `/context`, `CLAUDE.md`, `README.md`) is already done — do not recreate.
   - Verify: `git status` shows no `node_modules`, `.env`, or build output once dependencies are installed later.
@@ -17,7 +17,7 @@ Commit format: `feat(U#.#): short description`
 
 ## Phase 1: Backend — Storage & Server Foundation
 
-- [ ] **Unit 1.1: Supabase Schema & Client**
+- [x] **Unit 1.1: Supabase Schema & Client**
   - Create a Supabase project and run the following SQL:
 
     ```sql
@@ -127,20 +127,20 @@ Commit format: `feat(U#.#): short description`
     ```
   - Verify: test insert and select on all four tables runs without error.
 
-- [ ] **Unit 1.2: Express Server Scaffold**
+- [x] **Unit 1.2: Express Server Scaffold**
   - Install `express`, `cors`, `dotenv`, `tsx`.
   - Create `backend/src/index.ts` — Express app with `cors()`, `express.json()` middleware.
   - Register `GET /api/health` returning `{ status: 'ok' }`.
   - Add `dev` script: `tsx watch src/index.ts`.
   - Verify: `curl http://localhost:3001/api/health` returns `{"status":"ok"}`.
 
-- [ ] **Unit 1.3: Supabase Auth Middleware**
+- [x] **Unit 1.3: Supabase Auth Middleware**
   - Create `backend/src/middleware/auth.middleware.ts`.
   - Export `requireAuth(req, res, next)` — reads `Authorization: Bearer <token>`, verifies it against Supabase Auth, attaches the resolved user to `req.user`.
   - Missing or invalid token → respond `401` using the standard error shape (see `architecture.md`), do not call `next()`.
   - Verify: a route guarded by `requireAuth` returns `401` with no token, and passes through with a valid Supabase session token.
 
-- [ ] **Unit 1.4: Standard Error Handler**
+- [x] **Unit 1.4: Standard Error Handler**
   - Create `backend/src/middleware/error.middleware.ts`.
   - Export a typed `AppError` class (`statusCode`, `code`, `message`).
   - Export a central Express error-handling middleware that catches thrown `AppError`s (and unknown errors, defaulting to 500) and shapes the response as:

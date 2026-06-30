@@ -2,17 +2,19 @@
 
 ## Current phase
 
-Planning. No code written yet. `/context` files just established as the source of truth for the build.
+Phase 1 code complete. Awaiting Supabase project creation + schema run before Phase 1 can be fully verified.
 
 ## Completed
 
 - Product brief finalized (problem, solution, Nomba integration points, tech stack, transaction flow, demo plan).
 - Backend architecture guide written for frontend developers (endpoints, auth model, risk display rules, error shape, checkout flow, frontend/backend boundary).
 - `/context` documentation set established (this file and its five siblings).
+- **Unit 0.1**: `.gitignore` added at repo root (covers `node_modules`, `.env`, `.env.local`, `.next`, `dist`, `.DS_Store`).
+- **Units 1.1–1.4**: Backend scaffolded — `backend/` initialized, all Phase 1 source files written, 98 packages installed. Awaiting Supabase project + schema to fully verify Unit 1.1.
 
 ## In progress
 
-- Nothing yet — repo not initialized.
+- Nothing. Phase 0 complete, ready to begin Phase 1.
 
 ## Next up
 
@@ -53,3 +55,5 @@ Planning. No code written yet. `/context` files just established as the source o
 ## Session notes
 
 - 2026-06-30: Established all six `/context` files and `CLAUDE.md` from the Truvend Product Brief and Backend Architecture Guide. No code exists yet — this is the starting point for the build.
+- 2026-06-30: Phase 0 complete — `.gitignore` added (Unit 0.1). Phase 1 begins next.
+- 2026-06-30: Phase 1 backend scaffold complete (Units 1.1–1.4). All source files written, npm install succeeded. Unit 1.1 verification pending Supabase project creation and SQL schema run by the team.
