@@ -203,12 +203,12 @@ Commit format: `feat(U#.#): short description`
 
 ## Phase 3: Backend — Nomba Payments Integration
 
-- [ ] **Unit 3.1: Nomba Auth & Client**
-  - Create `backend/src/lib/nomba.ts` — handles token exchange against `POST /v1/auth/token/issue` (sandbox or production base URL from env), caches the token until near expiry, exposes an authenticated request helper.
-  - Env vars: `NOMBA_BASE_URL`, `NOMBA_ACCOUNT_ID`, `NOMBA_CLIENT_ID`, `NOMBA_CLIENT_SECRET`.
-  - Verify: calling the helper against the sandbox auth endpoint returns a valid bearer token.
+- [x] **Unit 3.1: Nomba Auth & Client**
+  - Create `backend/src/lib/nomba.ts` — handles token exchange against `POST /v1/auth/token/issue` (production base URL from env — sandbox is not functional, production only), caches the token until near expiry, exposes an authenticated request helper.
+  - Env vars: `NOMBA_BASE_URL` (production: `https://api.nomba.com`), `NOMBA_ACCOUNT_ID`, `NOMBA_CLIENT_ID`, `NOMBA_CLIENT_SECRET`.
+  - Verify: calling the helper against the production auth endpoint returns a valid bearer token.
 
-- [ ] **Unit 3.2: Checkout Service & Route**
+- [x] **Unit 3.2: Checkout Service & Route**
   - Create `backend/src/services/orders.service.ts` — `createOrder(listingId, buyerId)`.
   - Inside `createOrder`: if the listing's `risk_level` is `high_risk`, this is backend-side defense in depth only — the actual gate (warning modal) lives in the frontend per `architecture.md` invariant 6. The backend should still allow the call to proceed (it cannot know whether the buyer saw the modal), but log/flag high-risk checkouts for visibility.
   - Calls Nomba Checkout (`POST /v1/checkout/order` against the configured base URL) with the listing price, gets back `checkoutLink` and `orderReference`.
@@ -216,21 +216,21 @@ Commit format: `feat(U#.#): short description`
   - Create `backend/src/routes/orders.ts` and `backend/src/controllers/orders.controller.ts`:
     - `POST /api/orders/checkout` (behind `requireAuth`)
     - `GET /api/orders/:id` (behind `requireAuth`)
-  - Verify: hitting checkout returns a `checkoutLink` pointing at the sandbox domain, and the order row exists with `status: 'pending'`.
+  - Verify: hitting checkout returns a `checkoutLink` pointing at the production Nomba checkout domain, and the order row exists with `status: 'pending'`.
 
-- [ ] **Unit 3.3: Webhook Receiver**
+- [x] **Unit 3.3: Webhook Receiver**
   - Create `backend/src/routes/webhook.ts` — `POST /webhook/nomba`. Not behind `requireAuth` (Nomba calls this directly, not an authenticated frontend user) — validate the webhook signature per Nomba's docs instead, once that signing mechanism is confirmed.
   - Create `backend/src/controllers/webhook.controller.ts` — parse the `payment.success` event body, match it to the order via `nomba_order_ref`, update `orders.status` to `'paid'`.
   - Respond `200` immediately; do any further processing (e.g. notifying the seller) after responding, not before.
   - This is the URL to submit in the hackathon's webhook-registration Google Doc once deployed: `https://<railway-deployment-url>/webhook/nomba`.
-  - Verify: a simulated sandbox webhook payload updates the matching order's status to `paid`.
+  - Verify: a simulated production webhook payload updates the matching order's status to `paid`.
 
-- [ ] **Unit 3.4: Vendor Virtual Accounts**
+- [x] **Unit 3.4: Vendor Virtual Accounts**
   - Add `createVirtualAccountForSeller(sellerId)` to a new `backend/src/services/sellers.service.ts` — calls Nomba's virtual account creation endpoint, persists the result into `vendor_virtual_accounts`.
   - Create `GET /api/seller/virtual-account` (behind `requireAuth`) — returns the calling seller's virtual account, creating one on first call if none exists.
   - Verify: first call for a seller with no virtual account creates one and returns its details; subsequent calls return the same record.
 
-- [ ] **Unit 3.5: Order Lifecycle Endpoints**
+- [x] **Unit 3.5: Order Lifecycle Endpoints**
   - Add `confirmDelivery(orderId, buyerId)` and `raiseDispute(orderId, buyerId)` to `orders.service.ts`.
   - `confirmDelivery`: only the buyer on the order can call this; moves status `delivered` → `completed` (or `paid`/`in_escrow` → `delivered` → `completed`, confirm exact intermediate states with the team — `architecture.md` lists the full status enum but doesn't pin the exact transition triggered by this one endpoint).
   - `raiseDispute`: only the buyer on the order can call this; moves status to `disputed`.
@@ -239,7 +239,7 @@ Commit format: `feat(U#.#): short description`
     - `POST /api/orders/:id/dispute` (behind `requireAuth`)
   - Verify: a non-buyer calling either endpoint gets `403`. The buyer succeeds and the order status updates accordingly.
 
-- [ ] **Unit 3.6: Seller Dashboard Endpoints**
+- [x] **Unit 3.6: Seller Dashboard Endpoints**
   - Add `getSellerOrders(sellerId)`, `getSellerPayouts(sellerId)`, `dispatchOrder(orderId, sellerId, trackingInfo?)` to `orders.service.ts` / `sellers.service.ts`.
   - Create the three routes (all behind `requireAuth`, all scoped to the authenticated seller):
     - `GET /api/seller/orders`
@@ -256,7 +256,7 @@ Commit format: `feat(U#.#): short description`
   - Set all env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `NOMBA_*`, `GEMINI_API_KEY`) in Railway, never committed to the repo.
   - Confirm `GET /api/health` responds on the public Railway URL.
   - Submit the webhook URL (`https://<railway-url>/webhook/nomba`) to the hackathon's webhook-registration form.
-  - Verify: public health check passes, and a sandbox webhook test hits the deployed endpoint successfully.
+  - Verify: public health check passes, and a production webhook fires and hits the deployed endpoint successfully.
 
 ---
 

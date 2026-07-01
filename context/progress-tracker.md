@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 2 code complete. Phase 1 + 2 verification requires Supabase project + `.env` to be populated.
+Phase 3 code complete. All backend units done. Next: Phase 4 (Railway deployment).
 
 ## Completed
 
@@ -59,3 +59,5 @@ Phase 2 code complete. Phase 1 + 2 verification requires Supabase project + `.en
 - 2026-06-30: Phase 0 complete — `.gitignore` added (Unit 0.1). Phase 1 begins next.
 - 2026-06-30: Phase 1 backend scaffold complete (Units 1.1–1.4). All source files written, npm install succeeded. Unit 1.1 verification pending Supabase project creation and SQL schema run by the team.
 - 2026-06-30: Phase 2 complete (Units 2.1–2.3). Decided synchronous Gemini scoring on listing creation (open question from unit_backend.md resolved: synchronous, per default). Soft delete chosen for listings. `GEMINI_API_KEY` added to `.env.example`.
+- 2026-06-30: Phase 3 complete (Units 3.1–3.6). All Nomba integration wired. **Decision: production URL only** (`https://api.nomba.com`) — sandbox non-functional, unit_backend.md updated to reflect this. Order lifecycle: webhook → `paid`, seller dispatch → `dispatched`, buyer confirm → `completed`. Payouts are completed orders (no separate payouts table in schema). Webhook signature verification left as a TODO pending Nomba docs confirmation.
+- 2026-06-30: Phase 3 patched with hackathon Slack findings: (1) `subAccountId` now auto-injected into all Nomba POST request bodies via `nombaRequest` — parent `accountId` stays in the header (Joseph Ajibodu fix). (2) Webhook header corrected to `nomba-signature` (was `x-nomba-signature` — Peter's 401 issue). (3) Webhook event field corrected to `event_type: "payment_success"` (was `event: "payment.success"`). (4) Full HMAC-SHA256 verification implemented using the exact string format from Nomba docs: `eventType:requestId:userId:walletId:transactionId:transactionType:transactionTime:responseCode:nombaTimestamp`. (5) Added `NOMBA_SUB_ACCOUNT_ID` and `NOMBA_WEBHOOK_SECRET` env vars.
