@@ -37,6 +37,8 @@ export interface Listing {
   risk_explanation: string | null
   is_active: boolean
   created_at: string
+  photo_url: string | null
+
 }
 
 export interface Order {
