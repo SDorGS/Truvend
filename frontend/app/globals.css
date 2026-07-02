@@ -1,0 +1,25 @@
+@import "tailwindcss";
+/*
+  TRUVEND brand tokens — Backend Architecture Guide / Frontend Build Brief §10.
+  Usage rules (do not break these):
+  - --color-caution-yellow is reserved for the "caution" risk badge only.
+    Never use it on buttons, nav, or general branding.
+  - --color-alert-red is reserved for the "high_risk" listing indicator
+    (badge, banner, modal) only. Generic form/API errors and order states
+    like "disputed" intentionally use Tailwind's default red, not this
+    token, so the high_risk signal stays unique.
+  - --color-signal-orange is the app's one CTA/accent color. Reserve it for
+    the actions that actually move money forward (Buy Now, Pay Now, Proceed
+    Anyway). Everything else uses --color-teal-mid as the primary color.
+*/
+@theme {
+  --color-teal-deep: #0F4C46;
+  --color-teal-mid: #2E8A80;
+  --color-signal-orange: #E8722C;
+  --color-caution-yellow: #E8B93F;
+  --color-alert-red: #D6483F;
+}
+body {
+  background-color: #f9fafb;
+  color: var(--color-teal-deep);
+}
