@@ -1,4 +1,3 @@
-
 export default class CheckoutFacade {
   checkout() {
     console.log("Validating payment...");
@@ -7,6 +6,3 @@ export default class CheckoutFacade {
     console.log("Checkout complete.");
   }
 }
-
-
-====================================================================================================
