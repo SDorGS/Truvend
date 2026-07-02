@@ -1,4 +1,3 @@
-
 import MarketplaceMediator from "./MarketplaceMediator";
 
 export default class SellerComponent {
@@ -17,5 +16,3 @@ export default class SellerComponent {
 }
 
 
-
-====================================================================================================
