@@ -311,7 +311,7 @@ Schema: `users.avatar_url TEXT NULL` added via `reset_schema.sql`. This phase wi
   - `orders.service.ts` — `getOrder`, `getSellerOrders` need the counterparty's name for the chat UI (`ChatThread` currently only has `buyerId`/raw IDs to label bubbles).
   - Add joined `buyer:users(display_name, avatar_url)` and resolve seller via the listing relation.
   - Verify: `GET /api/orders/:id` response includes both parties' display names.
-- [ ] **Unit 6.4: Messages sender info**
+ - [x] **Unit 6.4: Messages sender info**
   - `messages.service.ts` `getOrderMessages` — join `sender:users(display_name, avatar_url)` so the frontend doesn't have to cross-reference IDs to render "who sent this."
   - Verify: each message in `GET /api/orders/:id/messages` includes sender name/avatar, not just `sender_id`.
 
