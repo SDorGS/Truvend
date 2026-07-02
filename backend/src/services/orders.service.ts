@@ -88,6 +88,7 @@ export async function getOrder(orderId: string, userId: string): Promise<Order> 
 
   // Only the buyer or the listing's seller may view the order
   if (order.buyer_id !== userId) {
+    // If buyer doesn't match, fetch listing seller to check access
     const { data: listing } = await supabase
       .from('listings')
       .select('seller_id')
@@ -97,6 +98,40 @@ export async function getOrder(orderId: string, userId: string): Promise<Order> 
     if (!listing || listing.seller_id !== userId) {
       throw new AppError(403, 'FORBIDDEN', 'You do not have access to this order.')
     }
+  }
+
+  // Attach buyer display_name/avatar
+  try {
+    const { data: buyerUser } = await supabase
+      .from('users')
+      .select('display_name, avatar_url')
+      .eq('id', order.buyer_id)
+      .single()
+
+    if (buyerUser) {
+      ;(order as any).buyer = { display_name: buyerUser.display_name, avatar_url: buyerUser.avatar_url }
+    }
+
+    // Resolve seller via listing
+    const { data: listing } = await supabase
+      .from('listings')
+      .select('seller_id')
+      .eq('id', order.listing_id)
+      .single()
+
+    if (listing && listing.seller_id) {
+      const { data: sellerUser } = await supabase
+        .from('users')
+        .select('display_name, avatar_url')
+        .eq('id', listing.seller_id)
+        .single()
+
+      if (sellerUser) {
+        ;(order as any).seller = { display_name: sellerUser.display_name, avatar_url: sellerUser.avatar_url }
+      }
+    }
+  } catch (e) {
+    console.warn('[orders] getOrder: failed to fetch party display names', e)
   }
 
   return order
@@ -174,6 +209,23 @@ export async function raiseDispute(orderId: string, buyerId: string): Promise<Or
   return updated as Order
 }
 
+// --- Buyer's orders ---
+
+export async function getBuyerOrders(buyerId: string): Promise<Order[]> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('buyer_id', buyerId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[orders] getBuyerOrders:', error)
+    throw new AppError(500, 'DB_ERROR', 'Failed to fetch your orders.')
+  }
+
+  return (data ?? []) as Order[]
+}
+
 // --- Unit 3.6: Seller dashboard ---
 
 export async function getSellerOrders(sellerId: string): Promise<Order[]> {
@@ -201,7 +253,26 @@ export async function getSellerOrders(sellerId: string): Promise<Order[]> {
     throw new AppError(500, 'DB_ERROR', 'Failed to fetch seller orders.')
   }
 
-  return (data ?? []) as Order[]
+  const orders = (data ?? []) as Order[]
+
+  // Attach buyer display info for each order
+  try {
+    for (const o of orders) {
+      const { data: buyerUser } = await supabase
+        .from('users')
+        .select('display_name, avatar_url')
+        .eq('id', o.buyer_id)
+        .single()
+
+      if (buyerUser) {
+        ;(o as any).buyer = { display_name: buyerUser.display_name, avatar_url: buyerUser.avatar_url }
+      }
+    }
+  } catch (e) {
+    console.warn('[orders] getSellerOrders: failed to attach buyer info', e)
+  }
+
+  return orders
 }
 
 export async function getSellerPayouts(sellerId: string): Promise<Order[]> {

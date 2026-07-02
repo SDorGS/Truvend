@@ -307,7 +307,7 @@ Schema: `users.avatar_url TEXT NULL` added via `reset_schema.sql`. This phase wi
 ```
   - Add `seller?: { display_name: string; avatar_url: string | null }` to the `Listing` type.
   - Verify: `GET /api/listings` response includes a nested `seller` object per listing, not just `seller_id`.
-- [ ] **Unit 6.3: Join buyer/seller info into orders**
+ - [x] **Unit 6.3: Join buyer/seller info into orders**
   - `orders.service.ts` — `getOrder`, `getSellerOrders` need the counterparty's name for the chat UI (`ChatThread` currently only has `buyerId`/raw IDs to label bubbles).
   - Add joined `buyer:users(display_name, avatar_url)` and resolve seller via the listing relation.
   - Verify: `GET /api/orders/:id` response includes both parties' display names.

@@ -54,6 +54,9 @@ export interface Order {
   amount: number
   created_at: string
   updated_at: string
+
+  buyer?: { display_name: string; avatar_url: string | null }
+  seller?: { display_name: string; avatar_url: string | null }
 }
 
 export interface GeminiRiskAnalysis {
