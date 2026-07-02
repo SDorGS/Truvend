@@ -1,4 +1,4 @@
-import ApiClient from "./ApiClient";
+import ApiClient, { ApiError } from "./ApiClient";
 import { Order } from "@/types/order";
 import { normalizeOrder, normalizeOrders } from "@/lib/normalize";
 
@@ -20,8 +20,24 @@ export default class OrderApi {
     return normalizeOrder(raw);
   }
 
-  checkout(listingId: string) {
-    return this.api.post<CheckoutResponse>("/api/orders/checkout", { listingId });
+  // The backend returns the whole Order row (snake_case: checkout_link, id, ...).
+  // Callers only need the pieces they use, so we translate here — without this,
+  // `checkoutLink` comes back undefined and `window.location.href = undefined`
+  // navigates to the string "undefined" (relative), landing on /listings/undefined.
+  async checkout(listingId: string): Promise<CheckoutResponse> {
+    const raw = await this.api.post<Record<string, unknown>>(
+      "/api/orders/checkout",
+      { listingId }
+    );
+
+    const checkoutLink = String(raw.checkoutLink ?? raw.checkout_link ?? "");
+    const orderId = String(raw.orderId ?? raw.id ?? "");
+
+    if (!checkoutLink) {
+      throw new ApiError(502, "NO_CHECKOUT_LINK", "Checkout did not return a payment link.");
+    }
+
+    return { checkoutLink, orderId };
   }
 
   async confirmDelivery(id: string): Promise<Order> {

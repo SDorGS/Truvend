@@ -65,6 +65,7 @@ Core entities implied by the brief and backend guide (exact schema/migrations ow
 | POST | `/api/listings` | Create listing (seller only) |
 | PUT | `/api/listings/:id` | Edit listing (seller only) |
 | DELETE | `/api/listings/:id` | Remove listing (seller only) |
+| GET | `/api/orders` | All orders for the logged-in buyer |
 | POST | `/api/orders/checkout` | Create order, returns Nomba `checkoutLink` |
 | GET | `/api/orders/:id` | Fetch order status |
 | POST | `/api/orders/:id/confirm-delivery` | Buyer confirms receipt, releases escrow |

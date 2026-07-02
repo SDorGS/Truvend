@@ -37,7 +37,11 @@ export default function useBuyerDashboard() {
       const orderData = await orderApi.getOrders();
       setOrders(orderData);
 
-      const activeOrders = orderData.filter((o) => ACTIVE_STATUSES.includes(o.status));
+      // Filter out orders missing a listingId — otherwise the map below
+      // would fire GET /api/listings/undefined against the backend.
+      const activeOrders = orderData.filter(
+        (o) => ACTIVE_STATUSES.includes(o.status) && !!o.listingId
+      );
 
       const listingResults = await Promise.allSettled(
         activeOrders.map((order) => listingApi.getListing(order.listingId))

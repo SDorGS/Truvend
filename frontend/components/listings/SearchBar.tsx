@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useState } from "react";
-import Input from "@/components/common/Input";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   onSearch: (query: string) => void;
@@ -15,7 +14,7 @@ export default function SearchBar({ onSearch, defaultValue = "" }: Props) {
   return (
     <div className="mb-6">
       <Input
-        type="text"
+        type="search"
         placeholder="Search listings..."
         value={query}
         onChange={(e) => {

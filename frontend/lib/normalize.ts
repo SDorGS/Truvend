@@ -8,6 +8,7 @@
 import { Listing, RiskLevel } from "@/types/listing";
 import { Order, OrderStatus } from "@/types/order";
 import { Payout, VirtualAccount } from "@/types/seller";
+import { Message } from "@/types/message";
 
 function pick<T>(obj: Record<string, unknown>, ...keys: string[]): T | undefined {
   for (const key of keys) {
@@ -99,4 +100,18 @@ export function normalizeVirtualAccount(raw: Record<string, unknown>): VirtualAc
     bankName: String(pick(raw, "bankName", "bank_name") ?? ""),
     accountName: String(pick(raw, "accountName", "account_name") ?? ""),
   };
+}
+
+export function normalizeMessage(raw: Record<string, unknown>): Message {
+  return {
+    id: String(pick(raw, "id") ?? ""),
+    orderId: String(pick(raw, "orderId", "order_id") ?? ""),
+    senderId: String(pick(raw, "senderId", "sender_id") ?? ""),
+    body: String(pick(raw, "body") ?? ""),
+    createdAt: String(pick(raw, "createdAt", "created_at") ?? new Date().toISOString()),
+  };
+}
+
+export function normalizeMessages(raw: unknown): Message[] {
+  return Array.isArray(raw) ? raw.map((item) => normalizeMessage(item)) : [];
 }

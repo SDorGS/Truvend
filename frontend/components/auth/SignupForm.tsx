@@ -39,7 +39,7 @@ export default function SignupForm() {
     }
 
     setSubmitting(true);
-    const { error: signupError } = await signup(name, email, password, role);
+    const { error: signupError, hasSession } = await signup(name, email, password, role);
     setSubmitting(false);
 
     if (signupError) {
@@ -47,6 +47,13 @@ export default function SignupForm() {
       return;
     }
 
+    // Email confirmation is off → Supabase already logged us in, straight to app.
+    if (hasSession) {
+      router.push(ROUTES.LISTINGS);
+      return;
+    }
+
+    // Email confirmation is on → user needs to click the link before logging in.
     setSuccess(true);
   }
 

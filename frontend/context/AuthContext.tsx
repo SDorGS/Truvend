@@ -23,7 +23,7 @@ interface AuthContextValue {
     email: string,
     password: string,
     role?: "buyer" | "seller"
-  ) => Promise<{ error: string | null }>;
+  ) => Promise<{ error: string | null; hasSession: boolean }>;
   logout: () => Promise<void>;
 }
 
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     role: "buyer" | "seller" = "buyer"
   ) {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -73,7 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    return { error: error?.message ?? null };
+    // With email confirmation disabled, Supabase returns a session immediately —
+    // the user is already logged in and the caller should redirect them into the app.
+    // With confirmation enabled, session is null until they click the email link.
+    return { error: error?.message ?? null, hasSession: !!data.session };
   }
 
   async function logout() {

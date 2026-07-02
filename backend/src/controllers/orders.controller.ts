@@ -3,6 +3,19 @@ import type { Request, Response, NextFunction } from 'express'
 import * as ordersService from '../services/orders.service'
 import { AppError } from '../middleware/error.middleware'
 
+export async function listBuyerOrders(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const orders = await ordersService.getBuyerOrders(req.user!.id)
+    res.json(orders)
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function checkout(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { listingId } = req.body as { listingId?: string }

@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TRUVEND",
+  title: "Truvend",
   description: "Secure AI-powered marketplace",
 };
 

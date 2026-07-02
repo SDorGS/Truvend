@@ -7,7 +7,9 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import EscrowTimeline from "@/components/orders/EscrowTimeline";
 import Button from "@/components/common/Button";
+import ChatThread from "@/components/chat/ChatThread";
 import useOrder from "@/hooks/useOrder";
+import useAuth from "@/hooks/useAuth";
 import OrderApi from "@/services/api/OrderApi";
 import { ApiError } from "@/services/api/ApiClient";
 
@@ -30,6 +32,7 @@ const STATUS_MESSAGES: Record<string, string> = {
 
 function OrderDetails({ id }: { id: string }) {
   const { order, loading, error, refetch } = useOrder(id);
+  const { user } = useAuth();
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -102,6 +105,13 @@ function OrderDetails({ id }: { id: string }) {
           </Button>
         </div>
       )}
+
+      <div className="mt-10">
+        <ChatThread
+          orderId={id}
+          counterpartyLabel={user?.id === order.buyerId ? "Seller" : "Buyer"}
+        />
+      </div>
     </main>
   );
 }

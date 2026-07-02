@@ -127,6 +127,55 @@ Commit format: `feat(UF#.#): short description`
   - Signup: display name + email + password + role selector (buyer/seller) + submit. Link to login.
   - Verify: both pages render cleanly. Auth flow still works end-to-end.
 
+## Phase 7: Buyer-Seller Chat
+
+Brought into the hackathon build for the demo. Architecture deviation from the original plan: **HTTP + 3-second polling**, not WebSocket. Rationale: shipping speed on a same-day deadline. WebSocket upgrade documented in `unit_backend.md` Phase 5 as post-hackathon work.
+
+Original architecture decision (WebSocket) has been deferred, not cancelled — the REST endpoints and the `<ChatThread>` component are the same interface either way, so a WebSocket layer can slot in behind them later without touching the UI.
+ 
+- [ ] **Unit F7.1: Backend — WebSocket server**
+  - Add `ws` or `socket.io` to `backend/package.json`.
+  - Attach the WebSocket server to the same HTTP server instance Express uses in `backend/src/index.ts`, not a separate port.
+  - Connection auth: client sends the Supabase JWT on connect; server verifies it the same way `auth.middleware.ts` does before allowing the connection.
+  - This is a backend unit, not frontend. Belongs in `unit_backend.md`, not this file. Flag for Emmanuel.
+- [ ] **Unit F7.2: Backend — messages table and events**
+  - New table: `messages` (id, order_id, sender_id, recipient_id, body, created_at, read_at).
+  - Decide scope: order-scoped chat only, or open buyer-seller DMs. Order-scoped is the safer default — ties every conversation to an actual transaction.
+  - WebSocket events: `message:send` (client → server), `message:new` (server → recipient), `message:read` (client → server).
+  - Persist every message to `messages` on send, regardless of delivery status — the WebSocket layer is for real-time delivery, not the source of truth.
+- [x] **Unit F7.3: Frontend — messages hook + API client** *(originally WebSocket client — swapped for HTTP for the demo)*
+  - `frontend/services/api/MessageApi.ts` — GET/POST wrappers hitting the backend REST routes.
+  - `frontend/hooks/useMessages.ts` — polls every 3s while mounted, exposes `send()` that optimistically appends.
+- [x] **Unit F7.4: Frontend — Chat UI**
+  - `frontend/components/chat/ChatThread.tsx` — message thread with sent/received bubbles, autoscroll, character-capped input.
+  - Entry point: chat panel embedded on `app/orders/[id]/page.tsx`. Counterparty label ("Seller" / "Buyer") derives from `user.id` vs `order.buyerId`.
+  - Deferred: standalone listing-page "Message Seller" entry point (out of scope for the demo — orders already carry the seller and buyer).
+- [ ] **Unit F7.5: Moderation and safety**
+  - Unmoderated chat is a risk surface for a fraud-prevention product — sellers or buyers could negotiate off-platform or attempt manipulation outside the risk-scoring system. Decide whether messages get automated scanning before this ships. Not optional to skip without an explicit decision.
+Sequencing: F7.1 and F7.2 (backend) must exist before F7.3 and F7.4 (frontend) can be built. This is not a frontend-only phase despite living in this file — cross-reference with `unit_backend.md` before starting.
+ 
+
+## Phase 8: Seller/Buyer Profile Display (name + avatar)
+ 
+Depends on `unit_backend.md` Phase 6 (backend joins must ship first — these units will render blank/broken if the backend still only returns raw IDs).
+ 
+- [ ] **Unit F8.1: Update `Listing` type + normalizer**
+  - `types/listing.ts` — add `seller?: { displayName: string; avatarUrl: string | null }`.
+  - `lib/normalize.ts` `normalizeListing` — map `raw.seller` (snake_case fields inside: `display_name`, `avatar_url`) into the camelCase shape above. Follow the existing `pick()` pattern already used for every other field — don't hardcode a different access style for this one.
+- [ ] **Unit F8.2: Render seller name + avatar on ListingCard**
+  - `components/listings/ListingCard.tsx` currently has no seller row at all. Add: small circular avatar (fallback to initials on a colored circle if `avatarUrl` is null) + `seller.displayName`, placed under the title, above or beside the price.
+- [ ] **Unit F8.3: Render seller name + avatar on listing detail page**
+  - `app/listings/[id]/page.tsx` currently renders `listing.sellerId.slice(0, 8) + "…"` under "Seller" — replace with avatar + `seller.displayName`. Delete the truncated-ID fallback entirely; if `seller` is missing from the API response, that's a backend bug to surface, not something to paper over with a truncated UUID.
+- [ ] **Unit F8.4: Update `Order`/`Message` types + normalizers**
+  - `types/order.ts` — add `buyer?: { displayName: string; avatarUrl: string | null }`, `seller?: { displayName: string; avatarUrl: string | null }`.
+  - `types/message.ts` — add `sender?: { displayName: string; avatarUrl: string | null }`.
+  - Update `normalizeOrder` and `normalizeMessage` in `lib/normalize.ts` accordingly.
+- [ ] **Unit F8.5: Render names in ChatThread**
+  - `components/chat/ChatThread.tsx` currently labels bubbles generically ("Seller"/"Buyer" derived from ID comparison per the F7.4 note). Replace with the actual `sender.displayName` + small avatar next to each bubble.
+- [ ] **Unit F8.6: Render names on order tracking + seller dashboard**
+  - `app/orders/[id]/page.tsx` — show buyer/seller name near the `EscrowTimeline`.
+  - `app/seller/page.tsx` — orders table gets a buyer name column instead of/alongside the truncated order ID.
+
 ---
 
 ## Notes
