@@ -10,6 +10,8 @@ export interface Listing {
 
   sellerId: string;
 
+  seller?: { displayName: string; avatarUrl: string | null };
+
   title: string;
 
   description: string;

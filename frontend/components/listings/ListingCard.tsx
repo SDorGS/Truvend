@@ -40,6 +40,14 @@ export default function ListingCard({ listing }: Props) {
           <p className="mt-2 text-lg font-bold text-teal-deep">
             {formatCurrency(listing.price)}
           </p>
+          {listing.seller && (
+            <div className="mt-2 text-sm text-gray-500 flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-white">
+                {listing.seller.displayName ? listing.seller.displayName.charAt(0).toUpperCase() : "U"}
+              </div>
+              <div>{listing.seller.displayName}</div>
+            </div>
+          )}
         </div>
       </Card>
     </Link>

@@ -4,4 +4,5 @@ export interface Message {
   senderId: string;
   body: string;
   createdAt: string;
+  sender?: { displayName: string; avatarUrl: string | null };
 }

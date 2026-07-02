@@ -30,6 +30,14 @@ export function normalizeListing(raw: Record<string, unknown>): Listing {
   return {
     id: String(pick(raw, "id") ?? ""),
     sellerId: String(pick(raw, "sellerId", "seller_id") ?? ""),
+    seller: (function () {
+      const s = pick(raw, 'seller', 'seller') as Record<string, unknown> | undefined
+      if (!s) return undefined
+      return {
+        displayName: String(pick(s, 'display_name', 'displayName') ?? ''),
+        avatarUrl: String(pick(s, 'avatar_url', 'avatarUrl') ?? null) as string | null,
+      }
+    })(),
     title: String(pick(raw, "title") ?? "Untitled listing"),
     description: String(pick(raw, "description") ?? ""),
     image: String(pick(raw, "image", "image_url", "imageUrl", "photo_url", "photoUrl") ?? ""),
@@ -109,6 +117,14 @@ export function normalizeMessage(raw: Record<string, unknown>): Message {
     senderId: String(pick(raw, "senderId", "sender_id") ?? ""),
     body: String(pick(raw, "body") ?? ""),
     createdAt: String(pick(raw, "createdAt", "created_at") ?? new Date().toISOString()),
+    sender: (function () {
+      const s = pick(raw, 'sender', 'sender') as Record<string, unknown> | undefined
+      if (!s) return undefined
+      return {
+        displayName: String(pick(s, 'display_name', 'displayName') ?? ''),
+        avatarUrl: String(pick(s, 'avatar_url', 'avatarUrl') ?? null) as string | null,
+      }
+    })(),
   };
 }
 
