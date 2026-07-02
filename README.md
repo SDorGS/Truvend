@@ -255,7 +255,7 @@ Nomba × DevCareer Hackathon 2026
 
 ## License
 
-MIT.
+ MIT
 
 
 
