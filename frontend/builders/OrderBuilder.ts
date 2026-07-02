@@ -1,4 +1,3 @@
-
 import { Order } from "@/types/order";
 
 export default class OrderBuilder {
