@@ -18,4 +18,6 @@ export interface Order {
 
   amount?: number;
   createdAt?: string;
+  buyer?: { displayName: string; avatarUrl: string | null };
+  seller?: { displayName: string; avatarUrl: string | null };
 }

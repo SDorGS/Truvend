@@ -82,6 +82,22 @@ export function normalizeOrder(raw: Record<string, unknown>): Order {
     status: safeStatus,
     amount: amountRaw !== undefined ? Number(amountRaw) : undefined,
     createdAt: createdAtRaw !== undefined ? String(createdAtRaw) : undefined,
+    buyer: (function () {
+      const b = pick(raw, 'buyer', 'buyer') as Record<string, unknown> | undefined
+      if (!b) return undefined
+      return {
+        displayName: String(pick(b, 'display_name', 'displayName') ?? ''),
+        avatarUrl: String(pick(b, 'avatar_url', 'avatarUrl') ?? null) as string | null,
+      }
+    })(),
+    seller: (function () {
+      const s = pick(raw, 'seller', 'seller') as Record<string, unknown> | undefined
+      if (!s) return undefined
+      return {
+        displayName: String(pick(s, 'display_name', 'displayName') ?? ''),
+        avatarUrl: String(pick(s, 'avatar_url', 'avatarUrl') ?? null) as string | null,
+      }
+    })(),
   };
 }
 
