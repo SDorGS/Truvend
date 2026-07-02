@@ -1,4 +1,3 @@
-
 import Handler from "./Handler";
 
 export default class VerificationHandler
@@ -12,7 +11,3 @@ export default class VerificationHandler
     );
   }
 }
-
-
-
-====================================================================================================
