@@ -40,6 +40,8 @@ export interface Listing {
   created_at: string
   photo_url: string | null
 
+  seller?: { display_name: string; avatar_url: string | null }
+
 }
 
 export interface Order {

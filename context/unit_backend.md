@@ -300,7 +300,7 @@ Schema: `users.avatar_url TEXT NULL` added via `reset_schema.sql`. This phase wi
  
  - [x] **Unit 6.1: Update `User` type**
   - `backend/src/types/index.ts` — add `avatar_url: string | null` to the `User` interface.
-- [ ] **Unit 6.2: Join seller info into listings**
+ - [x] **Unit 6.2: Join seller info into listings**
   - `listings.service.ts` — `getActiveListings()` and `getListing(id)` currently `select('*')`. Change to a join:
 ```typescript
     .select('*, seller:users!listings_seller_id_fkey(display_name, avatar_url)')

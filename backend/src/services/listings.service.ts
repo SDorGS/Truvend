@@ -19,7 +19,7 @@ interface UpdateListingInput {
 export async function getActiveListings(): Promise<Listing[]> {
   const { data, error } = await supabase
     .from('listings')
-    .select('*')
+    .select('*, seller:users!listings_seller_id_fkey(display_name, avatar_url)')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
 
@@ -33,7 +33,7 @@ export async function getActiveListings(): Promise<Listing[]> {
 export async function getListing(id: string): Promise<Listing> {
   const { data, error } = await supabase
     .from('listings')
-    .select('*')
+    .select('*, seller:users!listings_seller_id_fkey(display_name, avatar_url)')
     .eq('id', id)
     .eq('is_active', true)
     .single()
