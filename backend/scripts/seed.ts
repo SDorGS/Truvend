@@ -38,9 +38,6 @@ async function wipe() {
   const { error } = await supabase.rpc('exec_sql', {
     sql: 'TRUNCATE TABLE messages, orders, listings, vendor_virtual_accounts, users CASCADE;',
   })
-  // Supabase JS client has no generic SQL exec by default. If the rpc above
-  // isn't set up, run reset_schema.sql manually in the SQL editor first,
-  // then re-run this script with WIPE=skip.
   if (error && process.env.WIPE !== 'skip') {
     console.error(
       'Could not truncate via rpc (expected unless you created an exec_sql function).\n' +
@@ -87,6 +84,13 @@ async function insertMessage(orderId: string, senderId: string, body: string) {
 const SELLERS = SELLER_B_ID ? [SELLER_A_ID, SELLER_B_ID] : [SELLER_A_ID]
 
 const LISTING_TEMPLATES: Omit<ListingSeed, 'seller_id'>[] = [
+  // --- 4 LOW COST TEST ITEMS (₦100 - ₦250) ---
+  { title: '[TEST] Clear Item', description: '100 NGN test item for checkout flow. Should not trigger any risk modal.', price: 100, photo_url: 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?w=600', risk_score: 5, risk_level: 'clear', risk_explanation: 'Standard test listing.' },
+  { title: '[TEST] Caution Item', description: '150 NGN test item. Should show a yellow warning but allow checkout.', price: 150, photo_url: 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?w=600', risk_score: 40, risk_level: 'caution', risk_explanation: 'Testing caution UI flow.' },
+  { title: '[TEST] Suspicious Item', description: '200 NGN test item. Should show an orange banner.', price: 200, photo_url: 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?w=600', risk_score: 65, risk_level: 'suspicious', risk_explanation: 'Testing suspicious UI flow.' },
+  { title: '[TEST] High Risk Item', description: '250 NGN test item. Must trigger the hard-blocking red modal before checkout.', price: 250, photo_url: 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?w=600', risk_score: 95, risk_level: 'high_risk', risk_explanation: 'Testing high-risk modal barrier.' },
+
+  // --- ORIGINAL 40 REALISTIC ITEMS ---
   { title: 'Samsung Galaxy S24 Ultra', description: 'Brand new, factory sealed. 256GB. Full warranty. Receipt provided.', price: 850000, photo_url: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600', risk_score: 10, risk_level: 'clear', risk_explanation: 'Listing details are consistent with market pricing.' },
   { title: 'MacBook Pro M3 14-inch', description: 'Used 3 months, no scratches. Original box and charger included.', price: 1200000, photo_url: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600', risk_score: 15, risk_level: 'clear', risk_explanation: 'Price and description align with used electronics market.' },
   { title: 'iPad Air 5th Gen', description: '64GB WiFi. Excellent condition. Screen protector applied since day one.', price: 420000, photo_url: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600', risk_score: 14, risk_level: 'clear', risk_explanation: 'Consistent pricing and detailed condition report.' },
@@ -149,10 +153,13 @@ void (async () => {
   console.log(`${insertedIds.length} listings inserted.\n`)
 
   console.log('Seeding orders...')
-  const orderCompleted = await insertOrder(insertedIds[0], BUYER_ID, 'completed', LISTING_TEMPLATES[0].price, 'reset-order-completed-001')
-  const orderDispatched = await insertOrder(insertedIds[1], BUYER_ID, 'dispatched', LISTING_TEMPLATES[1].price, 'reset-order-dispatched-001')
-  const orderPaid = await insertOrder(insertedIds[2], BUYER_ID, 'paid', LISTING_TEMPLATES[2].price, 'reset-order-paid-001')
-  const orderDisputed = await insertOrder(insertedIds[20], BUYER_ID, 'disputed', LISTING_TEMPLATES[20].price, 'reset-order-disputed-001')
+  const runId = Date.now() // Unique timestamp to prevent duplicate key errors
+
+  // These orders now perfectly map to the 4 small test items at the top of the array!
+  const orderCompleted = await insertOrder(insertedIds[0], BUYER_ID, 'completed', LISTING_TEMPLATES[0].price, `reset-order-completed-${runId}`)
+  const orderDispatched = await insertOrder(insertedIds[1], BUYER_ID, 'dispatched', LISTING_TEMPLATES[1].price, `reset-order-dispatched-${runId}`)
+  const orderPaid = await insertOrder(insertedIds[2], BUYER_ID, 'paid', LISTING_TEMPLATES[2].price, `reset-order-paid-${runId}`)
+  const orderDisputed = await insertOrder(insertedIds[3], BUYER_ID, 'disputed', LISTING_TEMPLATES[3].price, `reset-order-disputed-${runId}`)
   console.log('4 orders inserted.\n')
 
   console.log('Seeding sample chat on the paid order (visible without a real checkout)...')
