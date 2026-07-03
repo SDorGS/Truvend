@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 
 import { supabase } from '../lib/supabase'
-import { nombaRequest } from '../lib/nomba'
+import { nombaRequest, SUB_ACCOUNT_ID } from '../lib/nomba'
 import { AppError } from '../middleware/error.middleware'
 
 import type { VendorVirtualAccount } from '../types'
@@ -24,12 +24,23 @@ async function createVirtualAccountForSeller(sellerId: string): Promise<VendorVi
     .eq('id', sellerId)
     .single()
 
+  // Nomba requires accountRef to be 16–64 chars. UUID v4 is 36 — safe.
   const accountRef = randomUUID()
 
-  const nombaRes = await nombaRequest<NombaVirtualAccountResponse>('/v1/accounts/virtual', 'POST', {
-    accountName: user?.display_name ?? 'Truvend Seller',
+  // Nomba requires accountName to be 8–64 chars. Pad short display names so the
+  // API call doesn't fail purely on length.
+  const rawName = user?.display_name?.trim() || 'Truvend Seller'
+  const accountName = rawName.length >= 8 ? rawName : `${rawName} · Truvend`
+
+  // Sub-account VAs use a distinct endpoint (subAccountId in the URL path).
+  // If no sub-account is configured, fall back to the primary-account endpoint.
+  const path = SUB_ACCOUNT_ID
+    ? `/v1/accounts/virtual/${SUB_ACCOUNT_ID}`
+    : '/v1/accounts/virtual'
+
+  const nombaRes = await nombaRequest<NombaVirtualAccountResponse>(path, 'POST', {
     accountRef,
-    currency: 'NGN',
+    accountName,
   })
 
   if (nombaRes.code !== '00' || !nombaRes.data?.bankAccountNumber) {

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir \"c:\\\\Users\\\\OLL\\\\AppData\\\\Local\\\\Developer\\\\Truvend\")"
+      "Bash(dir \"c:\\\\Users\\\\OLL\\\\AppData\\\\Local\\\\Developer\\\\Truvend\")",
+      "WebFetch(domain:developer.nomba.com)"
     ]
   }
 }

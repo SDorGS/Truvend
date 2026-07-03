@@ -2,6 +2,10 @@ import crypto from 'crypto'
 
 import type { Request, Response } from 'express'
 
+interface WebhookRequest extends Request {
+  rawBody?: string
+}
+
 import { supabase } from '../lib/supabase'
 import { nombaRequest } from '../lib/nomba'
 
@@ -29,15 +33,14 @@ interface NombaWebhookPayload {
   }
 }
 
-interface CheckoutTransactionVerificationResponse {
+interface TransactionVerificationResponse {
   code: string
   description?: string
   data?: {
+    id?: string
+    status?: string
     success?: boolean | string
     message?: string
-    transactionDetails?: {
-      statusCode?: string
-    }
   }
 }
 
@@ -77,11 +80,12 @@ function verifySignature(
   return computed.toLowerCase() === receivedSig.toLowerCase()
 }
 
-export async function handleNombaWebhook(req: Request, res: Response): Promise<void> {
+export async function handleNombaWebhook(req: WebhookRequest, res: Response): Promise<void> {
   // HTTP header names are case-insensitive — read in lowercase (Express normalises them)
   const receivedSig = req.headers['nomba-signature'] as string | undefined
   const nombaTimestamp = req.headers['nomba-timestamp'] as string | undefined
   const secret = process.env.NOMBA_WEBHOOK_SECRET
+  const rawBody = req.rawBody
 
   // Verify signature when the secret is configured
   if (secret) {
@@ -116,12 +120,12 @@ export async function handleNombaWebhook(req: Request, res: Response): Promise<v
   }
 
   try {
-    const verificationPath = `/v1/checkout/transaction?idType=ORDER_REFERENCE&id=${encodeURIComponent(orderRef)}`
-    const verification = await nombaRequest<CheckoutTransactionVerificationResponse>(verificationPath, 'GET')
-    const isSuccessful = verification.data?.success === true || verification.data?.success === 'true'
+    const verificationPath = `/v1/transactions/accounts/single?orderReference=${encodeURIComponent(orderRef)}`
+    const verification = await nombaRequest<TransactionVerificationResponse>(verificationPath, 'GET')
+    const isSuccessful = verification.code === '00' && verification.data?.status === 'SUCCESS'
 
     if (!isSuccessful) {
-      console.warn(`[webhook] Checkout verification not successful for ${orderRef}:`, verification)
+      console.warn(`[webhook] Transaction verification not successful for ${orderRef}:`, verification)
       return
     }
 
