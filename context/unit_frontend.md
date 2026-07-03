@@ -98,6 +98,7 @@ Commit format: `feat(UF#.#): short description`
 ## Phase 5: Order Tracking & Seller Dashboard
 
 - [x] **Unit F5.1: Order Status Timeline**
+  - Added a buyer-side refund action to the order detail view for supported escrow statuses.
   - Rewrite `components/orders/EscrowTimeline.tsx`.
   - Vertical timeline component with dots and connecting lines.
   - Each status gets a step: pending → paid → in_escrow → dispatched → delivered → completed.

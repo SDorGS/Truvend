@@ -52,4 +52,9 @@ export default class OrderApi {
     const raw = await this.api.post<Record<string, unknown>>(`/api/orders/${id}/dispute`, {});
     return normalizeOrder(raw);
   }
+
+  async requestRefund(id: string): Promise<Order> {
+    const raw = await this.api.post<Record<string, unknown>>(`/api/orders/${id}/request-refund`, {});
+    return normalizeOrder(raw);
+  }
 }

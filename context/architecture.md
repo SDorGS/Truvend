@@ -70,6 +70,7 @@ Core entities implied by the brief and backend guide (exact schema/migrations ow
 | GET | `/api/orders/:id` | Fetch order status |
 | POST | `/api/orders/:id/confirm-delivery` | Buyer confirms receipt, releases escrow |
 | POST | `/api/orders/:id/dispute` | Buyer raises dispute, holds escrow |
+| POST | `/api/orders/:id/request-refund` | Buyer requests a Nomba refund for the order |
 | GET | `/api/seller/orders` | All orders for logged-in seller |
 | GET | `/api/seller/payouts` | Payout history |
 | POST | `/api/seller/orders/:id/dispatch` | Seller marks order shipped |

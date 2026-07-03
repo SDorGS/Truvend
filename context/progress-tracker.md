@@ -97,6 +97,7 @@ All hackathon build work complete. Both `/backend` and `/frontend` shipped. Chat
 ## Session notes
 
 - 2026-06-30: `/context` files established. No code yet.
+- 2026-07-03: Added buyer-initiated refund request flow for escrow orders. The backend now calls Nomba's refund endpoint for paid/in-escrow/dispatched orders, updates the order to disputed for review, and exposes the new `POST /api/orders/:id/request-refund` endpoint. The frontend order detail screen now surfaces a refund action for buyers.
 - 2026-06-30: Phase 0 complete — `.gitignore` at repo root.
 - 2026-06-30: Backend Phases 1–3 complete. Nomba integration + Gemini scoring wired. Production URL decision made.
 - 2026-06-30: Phase 3 Slack-fix patches applied — signature verification, header names, event field, sub-account body placement.

@@ -211,6 +211,77 @@ export async function raiseDispute(orderId: string, buyerId: string): Promise<Or
   return updated as Order
 }
 
+interface NombaTransactionLookupResponse {
+  code: string
+  data?: {
+    id?: string
+    status?: string
+  }
+}
+
+interface NombaRefundResponse {
+  code: string
+  data?: {
+    success?: boolean | string
+    message?: string
+  }
+}
+
+export async function requestRefund(orderId: string, buyerId: string): Promise<Order> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single()
+
+  if (error || !data) throw new AppError(404, 'NOT_FOUND', 'Order not found.')
+
+  const order = data as Order
+
+  if (order.buyer_id !== buyerId) {
+    throw new AppError(403, 'FORBIDDEN', 'Only the buyer can request a refund.')
+  }
+
+  const validStatuses: Order['status'][] = ['paid', 'in_escrow', 'dispatched']
+  if (!validStatuses.includes(order.status)) {
+    throw new AppError(400, 'INVALID_STATUS', `Cannot request a refund for an order with status '${order.status}'.`)
+  }
+
+  const reference = order.nomba_order_ref || orderId
+
+  const verification = await nombaRequest<NombaTransactionLookupResponse>(
+    `/v1/transactions/accounts/single?orderReference=${encodeURIComponent(reference)}`,
+    'GET'
+  )
+
+  if (verification.code !== '00' || !verification.data?.id) {
+    throw new AppError(502, 'NOMBA_ERROR', 'Unable to locate the Nomba transaction for refund processing.')
+  }
+
+  const refundResponse = await nombaRequest<NombaRefundResponse>('/v1/checkout/refund', 'POST', {
+    transactionId: verification.data.id,
+  })
+
+  const refundSucceeded = refundResponse.code === '00' || refundResponse.data?.success === true || refundResponse.data?.success === 'true'
+  if (!refundSucceeded) {
+    throw new AppError(502, 'NOMBA_ERROR', refundResponse.data?.message || 'Nomba refund request failed.')
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('orders')
+    .update({ status: 'disputed', updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .select()
+    .single()
+
+  if (updateError || !updated) {
+    console.error('[orders] requestRefund:', updateError)
+    throw new AppError(500, 'DB_ERROR', 'Failed to record the refund request.')
+  }
+
+  return updated as Order
+}
+
 // --- Buyer's orders ---
 
 export async function getBuyerOrders(buyerId: string): Promise<Order[]> {

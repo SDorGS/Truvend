@@ -66,3 +66,16 @@ export async function raiseDispute(
     next(err)
   }
 }
+
+export async function requestRefund(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const order = await ordersService.requestRefund(req.params.id, req.user!.id)
+    res.json(order)
+  } catch (err) {
+    next(err)
+  }
+}

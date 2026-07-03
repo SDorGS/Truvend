@@ -232,6 +232,7 @@ Commit format: `feat(U#.#): short description`
 
 - [x] **Unit 3.5: Order Lifecycle Endpoints**
   - Add `confirmDelivery(orderId, buyerId)` and `raiseDispute(orderId, buyerId)` to `orders.service.ts`.
+  - Add `requestRefund(orderId, buyerId)` for buyer-initiated escrow refunds, calling Nomba's refund endpoint and recording the request.
   - `confirmDelivery`: only the buyer on the order can call this; moves status `delivered` → `completed` (or `paid`/`in_escrow` → `delivered` → `completed`, confirm exact intermediate states with the team — `architecture.md` lists the full status enum but doesn't pin the exact transition triggered by this one endpoint).
   - `raiseDispute`: only the buyer on the order can call this; moves status to `disputed`.
   - Create the two routes:

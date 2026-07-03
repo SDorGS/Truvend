@@ -64,6 +64,20 @@ function OrderDetails({ id }: { id: string }) {
     }
   }
 
+  async function handleRequestRefund() {
+    setActionError(null);
+    setSubmitting(true);
+
+    try {
+      await orderApi.requestRefund(id);
+      await refetch();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not request refund.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (loading) {
     return <Loading />;
   }
@@ -97,7 +111,7 @@ function OrderDetails({ id }: { id: string }) {
             />
           ) : (
             <div className="w-9 h-9 rounded-full bg-gray-300 flex items-center justify-center text-sm text-white">
-              {(order.seller?.displayName ?? order.sellerId || "").charAt(0).toUpperCase()}
+              {((order.seller?.displayName ?? order.sellerId) || "").charAt(0).toUpperCase()}
             </div>
           )}
           <div>
@@ -118,7 +132,7 @@ function OrderDetails({ id }: { id: string }) {
             />
           ) : (
             <div className="w-9 h-9 rounded-full bg-gray-300 flex items-center justify-center text-sm text-white">
-              {(order.buyer?.displayName ?? order.buyerId || "").charAt(0).toUpperCase()}
+              {((order.buyer?.displayName ?? order.buyerId) || "").charAt(0).toUpperCase()}
             </div>
           )}
           <div>
@@ -138,13 +152,17 @@ function OrderDetails({ id }: { id: string }) {
         <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{actionError}</p>
       )}
 
-      {order.status === "dispatched" && (
-        <div className="mt-8 flex gap-3">
+      {(order.status === "dispatched" || order.status === "in_escrow" || order.status === "paid") && (
+        <div className="mt-8 flex flex-wrap gap-3">
           <Button onClick={handleConfirmDelivery} disabled={submitting}>
             {submitting ? "Confirming..." : "Confirm Delivery"}
           </Button>
 
-          <Button onClick={handleDispute} disabled={submitting} variant = "danger">
+          <Button onClick={handleRequestRefund} disabled={submitting} variant="danger">
+            {submitting ? "Requesting..." : "Request Refund"}
+          </Button>
+
+          <Button onClick={handleDispute} disabled={submitting} variant="danger">
             Raise Dispute
           </Button>
         </div>

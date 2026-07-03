@@ -268,7 +268,7 @@ function OrdersTable({
                       />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-white">
-                        {(order.buyer?.displayName ?? order.buyerId || "").charAt(0).toUpperCase()}
+                        {((order.buyer?.displayName ?? order.buyerId) || "").charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="text-sm text-gray-700">
