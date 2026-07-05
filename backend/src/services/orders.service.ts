@@ -293,13 +293,28 @@ export async function requestRefund(orderId: string, buyerId: string): Promise<O
     )
   }
 
-  const refundResponse = await nombaRequest<NombaRefundResponse>('/v1/checkout/refund', 'POST', {
-    transactionId,
-  })
+  console.log(`[refund] POST /v1/checkout/refund body:`, { transactionId, orderId })
 
-  const refundSucceeded = refundResponse.code === '00' || refundResponse.data?.success === true || refundResponse.data?.success === 'true'
+  const refundResponse = await nombaRequest<NombaRefundResponse & { description?: string }>(
+    '/v1/checkout/refund',
+    'POST',
+    { transactionId }
+  )
+
+  console.log(`[refund] Nomba raw response for order=${orderId}:`, JSON.stringify(refundResponse))
+
+  const refundSucceeded =
+    refundResponse.code === '00' ||
+    refundResponse.data?.success === true ||
+    refundResponse.data?.success === 'true'
+
   if (!refundSucceeded) {
-    throw new AppError(502, 'NOMBA_ERROR', refundResponse.data?.message || 'Nomba refund request failed.')
+    // Surface whatever Nomba actually said so the buyer/dev sees the real reason.
+    const nombaMsg =
+      refundResponse.data?.message ||
+      refundResponse.description ||
+      `Nomba refund failed (code=${refundResponse.code ?? 'unknown'})`
+    throw new AppError(502, 'NOMBA_REFUND_FAILED', nombaMsg)
   }
 
   const { data: updated, error: updateError } = await supabase
