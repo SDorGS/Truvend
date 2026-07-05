@@ -223,29 +223,17 @@ export async function handleNombaWebhook(req: WebhookRequest, res: Response): Pr
 
   log('dispatch', cid, `resolved orderRef=${orderRef}`)
 
+  // Stage 7 — DB update. The webhook is already proven authentic by the HMAC
+  // signature check above, so we don't need a second Nomba API round-trip here.
+  //
+  // (We used to GET /v1/checkout/order/{ref} as belt-and-braces, but hackathon
+  // sub-accounts return 400 "Unable to find Order" from that endpoint — the
+  // signature is the source of truth for now. Re-enable verification once
+  // Nomba exposes it to sub-accounts if defence-in-depth is desired.)
+  //
+  // Idempotency guard (.eq('status', 'pending')) means a Nomba retry lands as
+  // a no-op, not a state regression.
   try {
-    // Stage 7 — verify the payment on Nomba's side before mutating our DB.
-    // Belt-and-braces: even if the signature checked out, this proves the
-    // transaction actually cleared, not just that Nomba tried to notify us.
-    const verificationPath = `/v1/checkout/order/${encodeURIComponent(orderRef)}`
-    log('verify', cid, `GET ${verificationPath}`)
-
-    const verification = await nombaRequest<TransactionVerificationResponse>(verificationPath, 'GET')
-    log('verify', cid, 'response:', verification)
-
-    const isSuccessful =
-      verification.code === '00' &&
-      (verification.data?.status === 'SUCCESS' ||
-        verification.data?.status === 'success' ||
-        verification.data?.success === true)
-
-    if (!isSuccessful) {
-      warn('verify', cid, `not successful — leaving order pending`, verification)
-      return
-    }
-
-    // Stage 8 — DB update. Idempotency guard (.eq('status', 'pending')) means
-    // a repeat delivery is a no-op, not a state regression.
     const nowIso = new Date().toISOString()
     log('update', cid, `flipping orders.status pending→in_escrow where nomba_order_ref=${orderRef}`)
 
@@ -272,6 +260,6 @@ export async function handleNombaWebhook(req: WebhookRequest, res: Response): Pr
 
     log('update', cid, `success: ${data.length} row(s) moved to in_escrow`, data)
   } catch (err) {
-    error('verify', cid, 'threw during processing:', err instanceof Error ? err.message : err)
+    error('update', cid, 'threw during processing:', err instanceof Error ? err.message : err)
   }
 }
