@@ -7,6 +7,92 @@ import { getListing } from './listings.service'
 
 import type { Order } from '../types'
 
+// -----------------------------------------------------------------------------
+// Auto-reconcile helper
+// -----------------------------------------------------------------------------
+// Asks Nomba what state a checkout order is in, and returns whether it cleared.
+// Two Nomba responses both count as "cleared":
+//   1. HTTP 200, { code: "00", data.status: "SUCCESS" }  — payment succeeded recently
+//   2. HTTP 400, { code: "400", description: "this transaction is already completed" }
+//      — payment succeeded and is now finalized/locked (nombaRequest throws for this;
+//        we catch and pattern-match the message)
+//
+// Any other response means "leave the order pending" — either Nomba can't see it
+// (sub-account routing gap), the transaction is still processing, or it failed.
+interface NombaCheckoutStatusResponse {
+  code?: string
+  description?: string
+  data?: { id?: string; status?: string; success?: boolean | string }
+}
+
+async function checkNombaPaymentStatus(
+  orderRef: string
+): Promise<{ cleared: boolean; transactionId: string | null; reason: string }> {
+  try {
+    const res = await nombaRequest<NombaCheckoutStatusResponse>(
+      `/v1/checkout/order/${encodeURIComponent(orderRef)}`,
+      'GET'
+    )
+
+    const succeeded =
+      res.code === '00' &&
+      (res.data?.status === 'SUCCESS' ||
+        res.data?.status === 'success' ||
+        res.data?.success === true)
+
+    if (succeeded) {
+      return { cleared: true, transactionId: res.data?.id ?? null, reason: 'code_00_success' }
+    }
+
+    return { cleared: false, transactionId: null, reason: `code=${res.code ?? 'unknown'}` }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+
+    if (msg.includes('already completed')) {
+      // Payment cleared, transaction is archived. No transactionId available.
+      return { cleared: true, transactionId: null, reason: 'already_completed' }
+    }
+
+    // Genuine lookup failure — Nomba can't see it, network error, etc.
+    return { cleared: false, transactionId: null, reason: msg.slice(0, 200) }
+  }
+}
+
+// Attempts to reconcile a single pending order. Idempotent + safe to call on any
+// order (returns the original row unchanged if reconcile isn't applicable). Never
+// throws — callers can treat the return value as authoritative for display.
+async function reconcilePendingOrder(order: Order): Promise<Order> {
+  if (order.status !== 'pending' || !order.nomba_order_ref) return order
+
+  const { cleared, transactionId, reason } = await checkNombaPaymentStatus(order.nomba_order_ref)
+
+  console.log(
+    `[reconcile] order=${order.id} nomba_ref=${order.nomba_order_ref} cleared=${cleared} reason=${reason}`
+  )
+
+  if (!cleared) return order
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      status: 'in_escrow',
+      nomba_transaction_id: transactionId ?? order.nomba_transaction_id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', order.id)
+    .eq('status', 'pending') // idempotency guard — no state regression
+    .select()
+    .single()
+
+  if (error || !data) {
+    console.warn(`[reconcile] failed to update order ${order.id}:`, error)
+    return order
+  }
+
+  console.log(`[reconcile] order=${order.id} moved to in_escrow via reconcile`)
+  return { ...order, ...(data as Order) }
+}
+
 // --- Unit 3.2: Checkout ---
 
 interface NombaCheckoutResponse {
@@ -107,7 +193,7 @@ export async function getOrder(orderId: string, userId: string): Promise<Order> 
 
   if (error || !data) throw new AppError(404, 'NOT_FOUND', 'Order not found.')
 
-  const order = data as Order
+  let order = data as Order
 
   // Only the buyer or the listing's seller may view the order
   if (order.buyer_id !== userId) {
@@ -122,6 +208,10 @@ export async function getOrder(orderId: string, userId: string): Promise<Order> 
       throw new AppError(403, 'FORBIDDEN', 'You do not have access to this order.')
     }
   }
+
+  // Auto-reconcile with Nomba if still pending — makes the UI self-healing
+  // for orders whose webhook never landed (Nomba's routing or delivery gap).
+  order = await reconcilePendingOrder(order)
 
   // Attach buyer display_name/avatar
   try {
@@ -354,7 +444,12 @@ export async function getBuyerOrders(buyerId: string): Promise<Order[]> {
     throw new AppError(500, 'DB_ERROR', 'Failed to fetch your orders.')
   }
 
-  return (data ?? []) as Order[]
+  const rows = (data ?? []) as Order[]
+
+  // Auto-reconcile any pending rows in parallel — one Nomba call per pending
+  // order, capped by the number of pending rows in the list. Completed/paid
+  // rows are returned as-is with zero extra work.
+  return Promise.all(rows.map((row) => reconcilePendingOrder(row)))
 }
 
 // --- Unit 3.6: Seller dashboard ---
