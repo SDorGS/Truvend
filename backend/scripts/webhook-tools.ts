@@ -1,7 +1,63 @@
 /// <reference types="node" />
 import 'dotenv/config'
 
-import { nombaRequest } from '../src/lib/nomba'
+import { nombaRequest, SUB_ACCOUNT_ID } from '../src/lib/nomba'
+import { supabase } from '../src/lib/supabase'
+
+// Nomba's filter-transactions response — best-effort typing since the docs
+// don't publish the exact shape. `data` might be an array directly or wrapped
+// in a `list` field. Both branches are handled in extractTxId below.
+interface NombaFilterTxResponse {
+  code?: string
+  data?:
+    | Array<Record<string, unknown>>
+    | {
+        list?: Array<Record<string, unknown>>
+        content?: Array<Record<string, unknown>>
+        results?: Array<Record<string, unknown>>
+      }
+}
+
+// Common candidate keys — Nomba uses `id` in some responses and `transactionId` in others.
+function extractTxId(item: Record<string, unknown>): string | null {
+  const candidates = ['transactionId', 'id', 'transaction_id', 'txnId']
+  for (const key of candidates) {
+    const v = item[key]
+    if (typeof v === 'string' && v.length > 0) return v
+  }
+  return null
+}
+
+function extractItems(res: NombaFilterTxResponse): Array<Record<string, unknown>> {
+  if (Array.isArray(res.data)) return res.data
+  return res.data?.results ?? res.data?.list ?? res.data?.content ?? []
+}
+
+async function lookupTxIdForOrderRef(orderRef: string): Promise<{
+  ok: boolean
+  transactionId: string | null
+  raw: NombaFilterTxResponse
+}> {
+  if (!SUB_ACCOUNT_ID) {
+    throw new Error('NOMBA_SUB_ACCOUNT_ID is not set in the environment.')
+  }
+
+  const path = `/v1/transactions/accounts/${encodeURIComponent(SUB_ACCOUNT_ID)}`
+  const res = await nombaRequest<NombaFilterTxResponse>(path, 'POST', { orderReference: orderRef })
+
+  const items = extractItems(res)
+  if (items.length === 0) return { ok: false, transactionId: null, raw: res }
+
+  // Prefer an exact orderReference match if the field is present, otherwise take the first.
+  const match =
+    items.find(
+      (it) =>
+        typeof it.orderReference === 'string' &&
+        (it.orderReference as string) === orderRef
+    ) ?? items[0]
+
+  return { ok: true, transactionId: extractTxId(match), raw: res }
+}
 
 // Reuses the same nombaRequest helper the server uses — no need to hand-extract
 // bearer tokens or accountIds. Auth + parent accountId header are handled for you.
@@ -21,6 +77,8 @@ function usage(): never {
       '',
       'Usage:',
       '  npx tsx scripts/webhook-tools.ts verify <nomba_order_ref>',
+      '  npx tsx scripts/webhook-tools.ts find-tx-id <nomba_order_ref>',
+      '  npx tsx scripts/webhook-tools.ts backfill-tx-ids',
       '  npx tsx scripts/webhook-tools.ts me',
       '  npx tsx scripts/webhook-tools.ts token',
       '  npx tsx scripts/webhook-tools.ts events <coreUserId> [limit]',
@@ -89,6 +147,83 @@ const cmd = process.argv[2]
 
 void (async () => {
   try {
+    if (cmd === 'find-tx-id') {
+      const orderRef = process.argv[3]
+      if (!orderRef) {
+        console.error('Usage: npx tsx scripts/webhook-tools.ts find-tx-id <nomba_order_ref>')
+        process.exit(1)
+      }
+      const { ok, transactionId, raw } = await lookupTxIdForOrderRef(orderRef)
+      console.log('Raw Nomba response:', JSON.stringify(raw, null, 2))
+      if (ok && transactionId) {
+        console.log('')
+        console.log(`transactionId for orderReference ${orderRef}: ${transactionId}`)
+      } else if (ok) {
+        console.log('')
+        console.log('Nomba returned matches but the transactionId field was missing. Inspect raw response above.')
+      } else {
+        console.log('')
+        console.log('Nomba returned no matching transactions for that orderReference.')
+      }
+      return
+    }
+
+    if (cmd === 'backfill-tx-ids') {
+      // Find all orders that flipped past pending but never got a transactionId.
+      // We deliberately skip 'pending' rows — those either haven't cleared yet
+      // or will be reconciled on next fetch via the auto-reconcile path.
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, nomba_order_ref, status')
+        .is('nomba_transaction_id', null)
+        .not('nomba_order_ref', 'is', null)
+        .not('status', 'in', '(pending,cancelled)')
+
+      if (error) throw error
+      const rows = data ?? []
+
+      console.log(`Found ${rows.length} order(s) missing a transactionId. Looking them up now…`)
+      console.log('')
+
+      let updated = 0
+      let notFound = 0
+      let errored = 0
+
+      for (const row of rows) {
+        const ref = row.nomba_order_ref as string
+        try {
+          const { ok, transactionId } = await lookupTxIdForOrderRef(ref)
+          if (!ok || !transactionId) {
+            console.log(`  ✗ order=${row.id} ref=${ref} — Nomba had no matching tx`)
+            notFound++
+            continue
+          }
+
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({ nomba_transaction_id: transactionId, updated_at: new Date().toISOString() })
+            .eq('id', row.id)
+
+          if (updateError) {
+            console.log(`  ! order=${row.id} ref=${ref} — DB update failed: ${updateError.message}`)
+            errored++
+            continue
+          }
+
+          console.log(`  ✓ order=${row.id} ref=${ref} → ${transactionId}`)
+          updated++
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          console.log(`  ! order=${row.id} ref=${ref} — Nomba lookup failed: ${msg.slice(0, 160)}`)
+          errored++
+        }
+      }
+
+      console.log('')
+      console.log(`Done. updated=${updated} notFound=${notFound} errored=${errored}`)
+      return
+    }
+
     if (cmd === 'verify') {
       const orderReference = process.argv[3]
       if (!orderReference) {

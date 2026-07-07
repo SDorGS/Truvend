@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 
 import { supabase } from '../lib/supabase'
-import { nombaRequest, SUB_ACCOUNT_ID } from '../lib/nomba'
+import { nombaRequest, SUB_ACCOUNT_ID, verifyNombaTransaction } from '../lib/nomba'
 import { AppError } from '../middleware/error.middleware'
 import { getListing } from './listings.service'
 
@@ -10,67 +10,25 @@ import type { Order } from '../types'
 // -----------------------------------------------------------------------------
 // Auto-reconcile helper
 // -----------------------------------------------------------------------------
-// Asks Nomba what state a checkout order is in, and returns whether it cleared.
-// Two Nomba responses both count as "cleared":
-//   1. HTTP 200, { code: "00", data.status: "SUCCESS" }  — payment succeeded recently
-//   2. HTTP 400, { code: "400", description: "this transaction is already completed" }
-//      — payment succeeded and is now finalized/locked (nombaRequest throws for this;
-//        we catch and pattern-match the message)
-//
-// Any other response means "leave the order pending" — either Nomba can't see it
-// (sub-account routing gap), the transaction is still processing, or it failed.
-interface NombaCheckoutStatusResponse {
-  code?: string
-  description?: string
-  data?: { id?: string; status?: string; success?: boolean | string }
-}
-
-async function checkNombaPaymentStatus(
-  orderRef: string
-): Promise<{ cleared: boolean; transactionId: string | null; reason: string }> {
-  try {
-    const res = await nombaRequest<NombaCheckoutStatusResponse>(
-      `/v1/checkout/order/${encodeURIComponent(orderRef)}`,
-      'GET'
-    )
-
-    const succeeded =
-      res.code === '00' &&
-      (res.data?.status === 'SUCCESS' ||
-        res.data?.status === 'success' ||
-        res.data?.success === true)
-
-    if (succeeded) {
-      return { cleared: true, transactionId: res.data?.id ?? null, reason: 'code_00_success' }
-    }
-
-    return { cleared: false, transactionId: null, reason: `code=${res.code ?? 'unknown'}` }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-
-    if (msg.includes('already completed')) {
-      // Payment cleared, transaction is archived. No transactionId available.
-      return { cleared: true, transactionId: null, reason: 'already_completed' }
-    }
-
-    // Genuine lookup failure — Nomba can't see it, network error, etc.
-    return { cleared: false, transactionId: null, reason: msg.slice(0, 200) }
-  }
-}
-
-// Attempts to reconcile a single pending order. Idempotent + safe to call on any
-// order (returns the original row unchanged if reconcile isn't applicable). Never
-// throws — callers can treat the return value as authoritative for display.
+// Uses the shared verifyNombaTransaction() helper (see nomba.ts) so both the
+// webhook path and this reconcile path standardize on one requery contract.
+// Fixes audit finding #3 (was previously calling /v1/checkout/order/{ref}
+// directly with duplicated status-parsing logic).
 async function reconcilePendingOrder(order: Order): Promise<Order> {
   if (order.status !== 'pending' || !order.nomba_order_ref) return order
 
-  const { cleared, transactionId, reason } = await checkNombaPaymentStatus(order.nomba_order_ref)
+  const verification = await verifyNombaTransaction(order.nomba_order_ref)
 
   console.log(
-    `[reconcile] order=${order.id} nomba_ref=${order.nomba_order_ref} cleared=${cleared} reason=${reason}`
+    `[reconcile] order=${order.id} nomba_ref=${order.nomba_order_ref} cleared=${verification.cleared} reachable=${verification.reachable} reason=${verification.reason}`
   )
 
-  if (!cleared) return order
+  // Only proceed on an authoritative "cleared" — for reconcile we don't want
+  // to flip to in_escrow based on webhook-signature trust because there's no
+  // webhook to trust in the reconcile path.
+  if (!verification.cleared) return order
+
+  const { transactionId } = verification
 
   const { data, error } = await supabase
     .from('orders')
@@ -143,7 +101,7 @@ export async function createOrder(listingId: string, buyerId: string): Promise<O
   // Redirect users to the order success page on the frontend after payment
   const callbackUrl = `${process.env.FRONTEND_URL}/orders/${orderId}?status=success`
 
-  const nombaRes = await nombaRequest<NombaCheckoutResponse>('/v1/checkout/order', 'POST', {
+  const checkoutBody = {
     order: {
       orderReference,
       amount: String(listing.price),
@@ -153,8 +111,10 @@ export async function createOrder(listingId: string, buyerId: string): Promise<O
       callbackUrl,
       accountId: checkoutAccountId,
     },
-  })
+  }
 
+  console.log('[checkout] POST /v1/checkout/order body:', JSON.stringify(checkoutBody))
+  const nombaRes = await nombaRequest<NombaCheckoutResponse>('/v1/checkout/order', 'POST', checkoutBody)
   console.log('[checkout] Nomba raw response:', JSON.stringify(nombaRes))
 
   const checkoutLink = nombaRes.data?.checkoutLink
@@ -383,12 +343,27 @@ export async function requestRefund(orderId: string, buyerId: string): Promise<O
     )
   }
 
-  // Docs mark amount as optional, but Nomba's API rejects the call with a
-  // generic 400 when it's omitted for online-checkout transactions. Always
-  // send it — full refund of the original order amount.
+  // Audit finding #1 (HIGH — flagged, not fixed):
+  // Nomba's docs mark accountNumber (10-digit) and bankCode as required for
+  // /v1/checkout/refund on card/checkout transactions. This code sends only
+  // transactionId + amount, which is why refunds return 400.
+  //
+  // Fixing this requires a product/schema decision I cannot make unilaterally:
+  //   - Where do we store the buyer's payout bank details?
+  //     Options: on the buyer's users row, per-order at checkout time, or
+  //     collected on-demand when the refund is initiated.
+  //   - Who is authorized to trigger a refund? Buyer, seller, or admin?
+  //
+  // No column/table currently exists for this data. Do NOT invent one without
+  // sign-off — pick the model deliberately, migrate the schema, then wire it
+  // through here.
+  //
+  // Docs mark amount as optional, but Nomba rejects the call with a generic 400
+  // when it's omitted for online-checkout transactions. Always send it.
   const refundBody = {
     transactionId,
     amount: Number(order.amount),
+    // TODO(audit #1): add accountNumber + bankCode from buyer once schema exists.
   }
 
   console.log(`[refund] POST /v1/checkout/refund body:`, { ...refundBody, orderId })

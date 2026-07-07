@@ -7,7 +7,7 @@ interface WebhookRequest extends Request {
 }
 
 import { supabase } from '../lib/supabase'
-import { nombaRequest } from '../lib/nomba'
+import { verifyNombaTransaction } from '../lib/nomba'
 
 interface NombaWebhookPayload {
   event_type: string
@@ -30,17 +30,6 @@ interface NombaWebhookPayload {
       accountId?: string
     }
     customer: Record<string, unknown>
-  }
-}
-
-interface TransactionVerificationResponse {
-  code: string
-  description?: string
-  data?: {
-    id?: string
-    status?: string
-    success?: boolean | string
-    message?: string
   }
 }
 
@@ -204,15 +193,62 @@ export async function handleNombaWebhook(req: WebhookRequest, res: Response): Pr
 
   if (!payload) return
 
-  if (payload.event_type !== 'payment_success') {
-    log('dispatch', cid, `ignoring event_type=${payload.event_type} (only handling payment_success)`)
-    return
-  }
-
-  // Stage 6 — resolve order reference. Checkout webhooks put it in data.order,
-  // VA transfers put it in data.transaction.merchantTxRef.
+  // Resolve order reference upfront (used by most event types).
   const orderRef = payload.data?.order?.orderReference ?? payload.data?.transaction?.merchantTxRef
 
+  // Stage 6 — dispatch by event type (audit finding #4).
+  // Every branch acks with 200 at line 202 above, so Nomba never retries the
+  // handled events; the branches below just decide whether/how to update DB state.
+  switch (payload.event_type) {
+    case 'payment_success':
+      await handlePaymentSuccess(payload, orderRef, cid)
+      return
+
+    case 'payment_failed':
+      // Log for forensics; leave order at 'pending' so a subsequent successful
+      // retry can still flip it. Marking as 'cancelled' here would race with
+      // Nomba's own retry mechanism.
+      warn('event', cid, `payment_failed noted — order left pending`, {
+        orderRef,
+        transactionId: payload.data?.transaction?.transactionId,
+        responseCode: payload.data?.transaction?.responseCode,
+      })
+      return
+
+    case 'payment_reversal':
+      // Reversal of a previously successful payment — flag but don't
+      // auto-mutate state (product/ops decision needed on cancel vs disputed).
+      warn('event', cid, `payment_reversal noted — manual reconciliation needed`, {
+        orderRef,
+        transactionId: payload.data?.transaction?.transactionId,
+      })
+      return
+
+    case 'payout_refund':
+    case 'payout_success':
+    case 'payout_failed':
+      // Payout-side events are informational for now — the escrow model
+      // means we care about payment inflows, not outflows.
+      log('event', cid, `payout event noted: ${payload.event_type}`, {
+        transactionId: payload.data?.transaction?.transactionId,
+      })
+      return
+
+    default:
+      log('event', cid, `ignoring unknown event_type=${payload.event_type}`)
+      return
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Event handlers
+// -----------------------------------------------------------------------------
+
+async function handlePaymentSuccess(
+  payload: NombaWebhookPayload,
+  orderRef: string | undefined,
+  cid: string
+): Promise<void> {
   if (!orderRef) {
     warn('dispatch', cid, 'no order reference in payload — cannot correlate to a local order', {
       order: payload.data?.order,
@@ -223,23 +259,37 @@ export async function handleNombaWebhook(req: WebhookRequest, res: Response): Pr
 
   log('dispatch', cid, `resolved orderRef=${orderRef}`)
 
-  // Stage 7 — DB update. The webhook is already proven authentic by the HMAC
-  // signature check above, so we don't need a second Nomba API round-trip here.
-  //
-  // (We used to GET /v1/checkout/order/{ref} as belt-and-braces, but hackathon
-  // sub-accounts return 400 "Unable to find Order" from that endpoint — the
-  // signature is the source of truth for now. Re-enable verification once
-  // Nomba exposes it to sub-accounts if defence-in-depth is desired.)
-  //
-  // Idempotency guard (.eq('status', 'pending')) means a Nomba retry lands as
-  // a no-op, not a state regression.
+  // Stage 7 — post-signature transaction requery (audit finding #2).
+  // The HMAC signature check already proves the webhook is authentic, but a
+  // separate lookup against Nomba's transactions API adds defence-in-depth
+  // against secret compromise or replay of a signed payload. Graceful fallback:
+  //   - cleared + reachable  → proceed (belt-and-braces confirmed)
+  //   - !cleared + reachable → BLOCK (Nomba explicitly says the payment failed)
+  //   - !reachable           → proceed on signature trust only (Nomba's endpoint
+  //                            is known to 404 for hackathon sub-accounts)
+  const verification = await verifyNombaTransaction(orderRef)
+  log('verify', cid, `verification: cleared=${verification.cleared} reachable=${verification.reachable} reason=${verification.reason}`)
+
+  if (verification.reachable && !verification.cleared) {
+    warn('verify', cid, 'Nomba requery says NOT cleared — refusing to update order')
+    return
+  }
+  if (!verification.reachable) {
+    warn('verify', cid, 'Nomba requery unreachable — trusting webhook signature alone')
+  }
+
+  // Stage 8 — DB update. Idempotency guard (.eq('status', 'pending')) means
+  // a Nomba retry lands as a no-op, not a state regression.
   try {
     const nowIso = new Date().toISOString()
-    // Capture Nomba's transactionId now so refund calls later don't need to
-    // hit /v1/transactions/accounts/single (which 404s on hackathon accounts).
-    const nombaTransactionId = payload.data?.transaction?.transactionId ?? null
+    // Prefer the requery's transactionId if we got one; otherwise use the
+    // webhook payload's copy. Either way this fixes stuck-refund cases.
+    const nombaTransactionId =
+      verification.transactionId ?? payload.data?.transaction?.transactionId ?? null
+
     log('update', cid, `flipping orders.status pending→in_escrow where nomba_order_ref=${orderRef}`, {
       nombaTransactionId,
+      requeryReason: verification.reason,
     })
 
     const { data, error: dbError } = await supabase
