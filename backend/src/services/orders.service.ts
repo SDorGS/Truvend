@@ -126,7 +126,7 @@ export async function createOrder(listingId: string, buyerId: string): Promise<O
   console.log('[checkout] Nomba raw response:', JSON.stringify(nombaRes))
 
   const checkoutLink = nombaRes.data?.checkoutLink
-  const nombaOrderRef = nombaRes.data?.orderReference ?? orderReference
+  const nombaOrderRef = orderReference
 
   if (!checkoutLink) {
     throw new AppError(502, 'NOMBA_ERROR', 'Checkout link not returned by Nomba.')

@@ -6,6 +6,7 @@ import {
   getSellerPayouts,
   dispatchOrder,
 } from '../services/orders.service'
+import { getSellerListings } from '../services/listings.service'
 
 export async function getVirtualAccount(
   req: Request,
@@ -54,6 +55,19 @@ export async function dispatch(
   try {
     const order = await dispatchOrder(req.params.id, req.user!.id)
     res.json(order)
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function listSellerListings(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const listings = await getSellerListings(req.user!.id)
+    res.json(listings)
   } catch (err) {
     next(err)
   }

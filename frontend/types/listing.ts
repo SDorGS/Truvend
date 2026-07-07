@@ -25,4 +25,9 @@ export interface Listing {
   riskLevel: RiskLevel;
 
   riskExplanation: string;
+
+  // Phase 10: "My Listings" needs to distinguish soft-deleted rows from active
+  // ones. The public browse endpoint filters these out, so this stays optional
+  // for older normalizations that never surfaced it.
+  isActive: boolean;
 }

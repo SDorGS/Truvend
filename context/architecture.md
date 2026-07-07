@@ -63,6 +63,7 @@ Core entities implied by the brief and backend guide (exact schema/migrations ow
 | GET | `/api/listings` | All active listings |
 | GET | `/api/listings/:id` | One listing, including current risk score |
 | POST | `/api/listings` | Create listing (seller only) |
+| POST | `/api/listings/photo` | Upload listing photo, returns `{ photo_url }` (seller only, multipart) |
 | PUT | `/api/listings/:id` | Edit listing (seller only) |
 | DELETE | `/api/listings/:id` | Remove listing (seller only) |
 | GET | `/api/orders` | All orders for the logged-in buyer |
@@ -73,6 +74,7 @@ Core entities implied by the brief and backend guide (exact schema/migrations ow
 | POST | `/api/orders/:id/request-refund` | Buyer requests a Nomba refund for the order |
 | GET | `/api/seller/orders` | All orders for logged-in seller |
 | GET | `/api/seller/payouts` | Payout history |
+| GET | `/api/seller/listings` | All listings owned by the logged-in seller (including soft-deleted) |
 | POST | `/api/seller/orders/:id/dispatch` | Seller marks order shipped |
 | GET | `/api/seller/virtual-account` | Seller's Nomba virtual account details |
 

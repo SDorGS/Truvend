@@ -47,6 +47,16 @@ export function normalizeListing(raw: Record<string, unknown>): Listing {
     riskExplanation: String(
       pick(raw, "riskExplanation", "risk_explanation") ?? "No fraud analysis available yet."
     ),
+    // `pick` returns undefined only when the key is absent — for is_active we
+    // must accept `false` as a legitimate value, so we can't fold this into
+    // `pick`. Read directly, default to true so browse-endpoint responses
+    // (which never send this field) behave as before.
+    isActive:
+      raw.isActive !== undefined
+        ? Boolean(raw.isActive)
+        : raw.is_active !== undefined
+          ? Boolean(raw.is_active)
+          : true,
   };
 }
 

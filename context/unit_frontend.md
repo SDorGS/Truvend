@@ -75,6 +75,35 @@ Depends on `unit_backend.md` Phase 9. Do not start until 9.1–9.4 are deployed 
   - `services/api/OrderApi.ts` — remove `confirmDelivery()` method, add `releaseEscrow(orderId: string, code: string)`.
   - `lib/normalize.ts` `normalizeOrder` — add `deliveryCode` mapping (`delivery_code` → `deliveryCode`), same `pick()` pattern as everything else.
 
+## Phase 10: Seller Listing Management UI (create, edit, delete, photo upload)
+ 
+Depends on `unit_backend.md` Phase 10 (upload endpoint + own-listings endpoint). Do not start until those are deployed.
+ 
+- [x] **Unit F10.1: Image upload component**
+  - `components/listings/ImageUpload.tsx` — file picker (accept `image/jpeg,image/png,image/webp`), local preview before upload, loading state during upload, error state (file too large / wrong type — surface the backend's rejection message as-is).
+  - On successful upload, calls `POST /api/listings/photo`, receives `{ photo_url }`, hands it back to the parent form via a callback prop — this component doesn't know or care about the rest of the listing form.
+  - Verify: selecting an image shows a preview immediately, uploads on submit (or on selection — pick one, be consistent), and surfaces backend validation errors clearly (5MB limit, file type).
+- [x] **Unit F10.2: Create listing form**
+  - New page: `app/seller/listings/new/page.tsx`.
+  - Fields: title, description, price, `ImageUpload`. Submit disabled until the photo upload has completed and returned a URL — don't let a seller submit a listing with an in-flight or failed upload.
+  - On submit: call `ListingApi.createListing()` with the form fields plus the returned `photo_url`. Redirect to the new listing's detail page (or the "My Listings" page from F10.3) on success.
+  - Show the AI risk result to the seller after creation — sellers should see their own listing's `risk_level`/`risk_explanation` immediately, not just buyers.
+- [x] **Unit F10.3: "My Listings" page**
+  - New page: `app/seller/listings/page.tsx`.
+  - Fetches from `GET /api/seller/listings` (new endpoint — not the public `GET /api/listings`). Shows every listing this seller owns, including soft-deleted (`is_active: false`) ones, visually distinguished (greyed out / "Removed" tag) rather than hidden.
+  - Each row: photo thumbnail, title, price, risk badge, Edit button, Delete button (only enabled for `is_active: true` listings).
+  - Link from the seller dashboard (`app/seller/page.tsx`) to this page — it shouldn't be an orphaned route.
+- [x] **Unit F10.4: Edit listing form**
+  - New page: `app/seller/listings/[id]/edit/page.tsx`. Reuses the form from F10.2, prefilled with the existing listing's data via `useListing(id)`.
+  - `ImageUpload` shows the current photo as the initial preview; only re-uploads if the seller picks a new file.
+  - On submit: calls `ListingApi.updateListing(id, data)`. Ownership is already enforced backend-side (403 if not the owner) — the frontend doesn't need to duplicate that check, but should redirect away cleanly if a 403 somehow occurs rather than showing a raw error.
+- [x] **Unit F10.5: Delete listing**
+  - On "My Listings," a delete action with a confirmation step (don't fire on a single click — this is destructive, even though it's a soft delete backend-side).
+  - Calls `ListingApi.deleteListing(id)`. On success, update the listing's state to inactive in the UI immediately rather than requiring a full refetch.
+- [x] **Unit F10.6: API client additions**
+  - `services/api/ListingApi.ts` — add `uploadPhoto(file: File): Promise<{ photo_url: string }>` (multipart request, not JSON — check `ApiClient.ts` supports `FormData` bodies, add support if it currently assumes JSON for every request).
+  - Add `getSellerListings(): Promise<Listing[]>` calling `GET /api/seller/listings
+
 ---
 
 ## Notes

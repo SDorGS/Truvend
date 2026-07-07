@@ -118,6 +118,31 @@ Replaces the buyer-initiated "Confirm Delivery" flow entirely. Escrow now releas
 - [x] **Unit 9.5: Update `raiseDispute` valid-status check**
   - `raiseDispute` currently allows disputing from `['paid', 'in_escrow', 'dispatched']`. Confirm this still makes sense given delivery-code completion only fires from `dispatched` — a buyer who never received the item and was never given a code (or the seller lost/mistyped it) still needs the dispute path from `dispatched`. No change needed if the enum already includes `dispatched` — verify it does.
 
+## Phase 10: Backend — Seller Listing Management (photo upload + own-listings endpoint)
+ 
+- [x] **Unit 10.1: Supabase Storage bucket**
+  - Create a bucket named `listing-photos` in Supabase Storage. Public read access (listing photos need to be publicly viewable in the marketplace). Insert/delete restricted to service role — the backend uploads on the seller's behalf using `SUPABASE_SERVICE_KEY`, so no RLS policy changes are needed for write access.
+  - Verify: bucket exists, a manually uploaded test file is reachable via its public URL.
+- [x] **Unit 10.2: Multipart upload handling**
+  - Install `multer`. Configure with memory storage (not disk — files go straight to Supabase Storage, never touch the container's filesystem), `limits: { fileSize: 5 * 1024 * 1024 }` (5MB cap), and a file filter accepting only `image/jpeg`, `image/png`, `image/webp`.
+  - Verify: a non-image file or a file over 5MB is rejected with a clear error before it reaches any handler.
+- [x] **Unit 10.3: Photo upload service**
+  - `backend/src/services/uploads.service.ts` — `uploadListingPhoto(fileBuffer: Buffer, mimeType: string, sellerId: string): Promise<string>`.
+  - Upload path convention: `listings/${sellerId}/${randomUUID()}.${ext}` — avoids collisions, keeps a seller's uploads grouped.
+  - Use `supabase.storage.from('listing-photos').upload(...)`, then `getPublicUrl(...)` to return the final URL string.
+  - Verify: calling this with a real image buffer returns a working public URL.
+- [x] **Unit 10.4: Upload route**
+  - `POST /api/listings/photo` (behind `requireAuth`, `multer` middleware reading field name `photo`).
+  - Controller: call `uploadListingPhoto`, return `{ photo_url: string }`.
+  - This is a standalone endpoint, not folded into listing create/update — the frontend uploads the photo first, gets the URL back, then submits the listing form with that URL already in hand. Keeps `createListing`/`updateListing` JSON-only, no multipart handling needed in those paths.
+  - Verify: uploading a real image via this endpoint while authenticated as a seller returns a working `photo_url`. Unauthenticated request gets 401.
+- [x] **Unit 10.5: Seller's own listings endpoint**
+  - `GET /api/listings` currently returns only `is_active: true` listings across all sellers — not suitable for a seller's own management view, since a seller needs to see their listings including ones they've soft-deleted (`is_active: false`), to know what happened to them.
+  - Add `getSellerListings(sellerId)` to `listings.service.ts` — no `is_active` filter, scoped to `seller_id = sellerId`, ordered newest first.
+  - New route: `GET /api/seller/listings` (behind `requireAuth`).
+  - Verify: a seller sees all their own listings including inactive ones. A different seller's listings never appear in this response.
+
+
 ---
 
 ## Notes on what's intentionally left open

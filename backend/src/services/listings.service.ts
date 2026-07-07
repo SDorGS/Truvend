@@ -8,12 +8,14 @@ interface CreateListingInput {
   title: string
   description: string
   price: number
+  photo_url?: string | null
 }
 
 interface UpdateListingInput {
   title?: string
   description?: string
   price?: number
+  photo_url?: string | null
 }
 
 export async function getActiveListings(): Promise<Listing[]> {
@@ -58,6 +60,7 @@ export async function createListing(
       title: input.title,
       description: input.description,
       price: input.price,
+      photo_url: input.photo_url ?? null,
       risk_score: risk.risk_score,
       risk_level: risk.risk_level,
       risk_explanation: risk.risk_explanation,
@@ -108,4 +111,22 @@ export async function deleteListing(id: string, sellerId: string): Promise<void>
     .eq('id', id)
 
   if (error) throw new AppError(500, 'DB_ERROR', 'Failed to delete listing.')
+}
+
+// Phase 10 Unit 10.5: seller's own listings, including soft-deleted rows.
+// Deliberately no `is_active` filter — the "My Listings" management view needs
+// to show what happened to a listing the seller previously deleted, not hide
+// it. Public browsing continues to use `getActiveListings()`.
+export async function getSellerListings(sellerId: string): Promise<Listing[]> {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*, seller:users!listings_seller_id_fkey(display_name, avatar_url)')
+    .eq('seller_id', sellerId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[listings] getSellerListings:', error)
+    throw new AppError(500, 'DB_ERROR', 'Failed to fetch your listings.')
+  }
+  return (data ?? []) as Listing[]
 }

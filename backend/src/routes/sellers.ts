@@ -8,6 +8,7 @@ const router = Router()
 router.get('/virtual-account', requireAuth, sellersController.getVirtualAccount)
 router.get('/orders', requireAuth, sellersController.listSellerOrders)
 router.get('/payouts', requireAuth, sellersController.listSellerPayouts)
+router.get('/listings', requireAuth, sellersController.listSellerListings)
 router.post('/orders/:id/dispatch', requireAuth, sellersController.dispatch)
 
 export default router

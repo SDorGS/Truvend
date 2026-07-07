@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   BadgeDollarSign,
   Check,
   CheckCircle2,
   Copy,
   Package,
+  Store,
   Wallet,
 } from "lucide-react";
 
@@ -69,9 +71,17 @@ function SellerDashboard() {
 
   return (
     <main className="mx-auto max-w-7xl p-6 md:p-8">
-      <h1 className="mb-8 text-3xl font-bold text-teal-deep md:text-4xl">
-        Seller Dashboard
-      </h1>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold text-teal-deep md:text-4xl">
+          Seller Dashboard
+        </h1>
+        <Link href="/seller/listings">
+          <Button variant="neutral" className="inline-flex items-center gap-2">
+            <Store className="h-4 w-4" aria-hidden="true" />
+            My Listings
+          </Button>
+        </Link>
+      </div>
 
       {ordersError && (
         <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">

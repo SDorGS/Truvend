@@ -49,10 +49,16 @@ class ApiClient {
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const authHeader = await this.getAuthHeader();
 
+    // For FormData bodies, the browser must set Content-Type itself so it
+    // can include the multipart boundary — a manual "application/json"
+    // header here would break the upload silently.
+    const isFormData =
+      typeof FormData !== "undefined" && options.body instanceof FormData;
+
     const response = await fetch(`${BASE_URL}${path}`, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...authHeader,
         ...(options.headers || {}),
       },
@@ -90,16 +96,18 @@ class ApiClient {
   }
 
   post<T>(path: string, body: unknown) {
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
     return this.request<T>(path, {
       method: "POST",
-      body: JSON.stringify(body),
+      body: isFormData ? (body as FormData) : JSON.stringify(body),
     });
   }
 
   put<T>(path: string, body: unknown) {
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
     return this.request<T>(path, {
       method: "PUT",
-      body: JSON.stringify(body),
+      body: isFormData ? (body as FormData) : JSON.stringify(body),
     });
   }
 
