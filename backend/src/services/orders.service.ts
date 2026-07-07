@@ -7,6 +7,14 @@ import { getListing } from './listings.service'
 
 import type { Order } from '../types'
 
+// Phase 9 (Unit 9.3): the delivery code is buyer-only. A seller who can read
+// their own copy of the code from any API response defeats the entire escrow-
+// release mechanism, so we scrub it before returning to sellers. Applied in
+// getOrder (dual-role), getSellerOrders, getSellerPayouts, and dispatchOrder.
+function stripDeliveryCode<T extends Order>(order: T): T {
+  return { ...order, delivery_code: null }
+}
+
 // -----------------------------------------------------------------------------
 // Auto-reconcile helper
 // -----------------------------------------------------------------------------
@@ -207,31 +215,77 @@ export async function getOrder(orderId: string, userId: string): Promise<Order> 
     console.warn('[orders] getOrder: failed to fetch party display names', e)
   }
 
+  // Unit 9.3: only the buyer sees the delivery code. The seller of the listing
+  // behind this order can also read this endpoint (see access check above), so
+  // strip the code unless the caller is the buyer.
+  if (order.buyer_id !== userId) {
+    return stripDeliveryCode(order)
+  }
+
   return order
 }
 
-// --- Unit 3.5: Lifecycle ---
+// --- Unit 3.5 / Phase 9: Lifecycle ---
 
-export async function confirmDelivery(orderId: string, buyerId: string): Promise<Order> {
+// Phase 9 (Unit 9.4): the buyer-initiated `confirmDelivery` flow has been
+// removed entirely. Escrow now releases only when the seller submits the
+// delivery code the buyer physically hands over (see releaseEscrow below).
+export async function releaseEscrow(orderId: string, sellerId: string, code: string): Promise<Order> {
   const { data, error } = await supabase
     .from('orders')
-    .select('*')
+    .select('*, listings(seller_id)')
     .eq('id', orderId)
     .single()
 
   if (error || !data) throw new AppError(404, 'NOT_FOUND', 'Order not found.')
 
-  const order = data as Order
+  const order = data as Order & { listings: { seller_id: string } }
 
-  if (order.buyer_id !== buyerId) {
-    throw new AppError(403, 'FORBIDDEN', 'Only the buyer can confirm delivery.')
+  if (order.listings.seller_id !== sellerId) {
+    throw new AppError(403, 'FORBIDDEN', 'Only the seller of this order can release escrow.')
   }
 
-  const validStatuses: Order['status'][] = ['paid', 'in_escrow', 'dispatched', 'delivered']
-  if (!validStatuses.includes(order.status)) {
-    throw new AppError(400, 'INVALID_STATUS', `Cannot confirm delivery for an order with status '${order.status}'.`)
+  if (order.status !== 'dispatched') {
+    throw new AppError(
+      400,
+      'INVALID_STATUS',
+      `Cannot release escrow for an order with status '${order.status}'.`
+    )
   }
 
+  const MAX_ATTEMPTS = 5
+  if (order.delivery_code_attempts >= MAX_ATTEMPTS) {
+    throw new AppError(
+      423,
+      'LOCKED',
+      'Too many incorrect attempts. Contact support to resolve this order.'
+    )
+  }
+
+  // Deliberate strict string comparison — the buyer hands over an exact string,
+  // and silently trimming/coercing would hide a genuine mismatch.
+  if (order.delivery_code !== code) {
+    const newAttempts = order.delivery_code_attempts + 1
+    const { error: attemptError } = await supabase
+      .from('orders')
+      .update({ delivery_code_attempts: newAttempts, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+
+    if (attemptError) {
+      console.error('[orders] releaseEscrow attempt increment:', attemptError)
+      throw new AppError(500, 'DB_ERROR', 'Failed to record attempt.')
+    }
+
+    const remaining = Math.max(0, MAX_ATTEMPTS - newAttempts)
+    throw new AppError(
+      400,
+      'INVALID_CODE',
+      `Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+    )
+  }
+
+  // On match: complete the order. Keep delivery_code on the row for audit —
+  // it stays hidden from sellers by the response-filter helper above.
   const { data: updated, error: updateError } = await supabase
     .from('orders')
     .update({ status: 'completed', updated_at: new Date().toISOString() })
@@ -240,11 +294,11 @@ export async function confirmDelivery(orderId: string, buyerId: string): Promise
     .single()
 
   if (updateError || !updated) {
-    console.error('[orders] confirmDelivery:', updateError)
-    throw new AppError(500, 'DB_ERROR', 'Failed to confirm delivery.')
+    console.error('[orders] releaseEscrow update:', updateError)
+    throw new AppError(500, 'DB_ERROR', 'Failed to release escrow.')
   }
 
-  return updated as Order
+  return stripDeliveryCode(updated as Order)
 }
 
 export async function raiseDispute(orderId: string, buyerId: string): Promise<Order> {
@@ -473,7 +527,8 @@ export async function getSellerOrders(sellerId: string): Promise<Order[]> {
     console.warn('[orders] getSellerOrders: failed to attach buyer info', e)
   }
 
-  return orders
+  // Unit 9.3: never expose the delivery code to a seller.
+  return orders.map(stripDeliveryCode)
 }
 
 export async function getSellerPayouts(sellerId: string): Promise<Order[]> {
@@ -503,7 +558,9 @@ export async function getSellerPayouts(sellerId: string): Promise<Order[]> {
     throw new AppError(500, 'DB_ERROR', 'Failed to fetch payouts.')
   }
 
-  return (data ?? []) as Order[]
+  // Unit 9.3: payouts belong to sellers — strip the code even here, where the
+  // order is already completed. The code is buyer-audit info, not seller info.
+  return ((data ?? []) as Order[]).map(stripDeliveryCode)
 }
 
 export async function dispatchOrder(orderId: string, sellerId: string): Promise<Order> {
@@ -526,9 +583,20 @@ export async function dispatchOrder(orderId: string, sellerId: string): Promise<
     throw new AppError(400, 'INVALID_STATUS', `Cannot dispatch an order with status '${order.status}'.`)
   }
 
+  // Phase 9: generate the 6-digit delivery code at dispatch time — never before.
+  // The buyer receives this code out-of-band (their order screen) and hands it
+  // to the seller on delivery; the seller submits it via releaseEscrow to
+  // complete the order. See Unit 9.3 for the response-filtering rule that
+  // hides this code from the seller.
+  const deliveryCode = Math.floor(100000 + Math.random() * 900000).toString()
+
   const { data: updated, error: updateError } = await supabase
     .from('orders')
-    .update({ status: 'dispatched', updated_at: new Date().toISOString() })
+    .update({
+      status: 'dispatched',
+      delivery_code: deliveryCode,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', orderId)
     .select()
     .single()
@@ -538,5 +606,7 @@ export async function dispatchOrder(orderId: string, sellerId: string): Promise<
     throw new AppError(500, 'DB_ERROR', 'Failed to dispatch order.')
   }
 
-  return updated as Order
+  // The dispatch endpoint is seller-only, so strip the code from the response
+  // (defence-in-depth alongside the seller filter in Unit 9.3).
+  return stripDeliveryCode(updated as Order)
 }

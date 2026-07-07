@@ -73,6 +73,7 @@ export function normalizeOrder(raw: Record<string, unknown>): Order {
 
   const amountRaw = pick(raw, "amount");
   const createdAtRaw = pick(raw, "createdAt", "created_at");
+  const deliveryCodeRaw = pick(raw, "deliveryCode", "delivery_code");
 
   return {
     id: String(pick(raw, "id") ?? ""),
@@ -82,6 +83,7 @@ export function normalizeOrder(raw: Record<string, unknown>): Order {
     status: safeStatus,
     amount: amountRaw !== undefined ? Number(amountRaw) : undefined,
     createdAt: createdAtRaw !== undefined ? String(createdAtRaw) : undefined,
+    deliveryCode: deliveryCodeRaw !== undefined ? String(deliveryCodeRaw) : null,
     buyer: (function () {
       const b = pick(raw, 'buyer', 'buyer') as Record<string, unknown> | undefined
       if (!b) return undefined

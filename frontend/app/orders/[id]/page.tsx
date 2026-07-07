@@ -12,6 +12,7 @@ import useOrder from "@/hooks/useOrder";
 import useAuth from "@/hooks/useAuth";
 import OrderApi from "@/services/api/OrderApi";
 import { ApiError } from "@/services/api/ApiClient";
+import { Card } from "@/components/ui/card";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -22,8 +23,8 @@ const orderApi = new OrderApi();
 const STATUS_MESSAGES: Record<string, string> = {
   pending: "Order created, waiting for payment.",
   paid: "Payment received, seller will ship soon.",
-  in_escrow: "Funds protected until delivery is confirmed.",
-  dispatched: "Seller has shipped this order.",
+  in_escrow: "Funds protected until you release payment on delivery.",
+  dispatched: "Seller has shipped this order. Share your delivery code on receipt to release payment.",
   delivered: "Delivered — payment released to seller.",
   completed: "Order complete.",
   disputed: "Under review.",
@@ -35,20 +36,6 @@ function OrderDetails({ id }: { id: string }) {
   const { user } = useAuth();
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  async function handleConfirmDelivery() {
-    setActionError(null);
-    setSubmitting(true);
-
-    try {
-      await orderApi.confirmDelivery(id);
-      await refetch();
-    } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not confirm delivery.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleDispute() {
     setActionError(null);
@@ -152,12 +139,22 @@ function OrderDetails({ id }: { id: string }) {
         <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{actionError}</p>
       )}
 
+      {order.status === "dispatched" && order.deliveryCode && (
+        <Card className="mt-8 border-teal-mid/40 bg-teal-mid/5 p-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-teal-deep">
+            Delivery Code
+          </p>
+          <p className="mt-3 font-mono text-4xl font-bold tracking-[0.4em] text-teal-deep md:text-5xl">
+            {order.deliveryCode}
+          </p>
+          <p className="mt-3 text-sm text-gray-600">
+            Give this code to the seller when your item is delivered — this releases payment to them.
+          </p>
+        </Card>
+      )}
+
       {(order.status === "dispatched" || order.status === "in_escrow" || order.status === "paid") && (
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button onClick={handleConfirmDelivery} disabled={submitting}>
-            {submitting ? "Confirming..." : "Confirm Delivery"}
-          </Button>
-
           <Button onClick={handleRequestRefund} disabled={submitting} variant="danger">
             {submitting ? "Requesting..." : "Request Refund"}
           </Button>

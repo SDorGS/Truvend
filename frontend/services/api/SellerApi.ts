@@ -1,7 +1,7 @@
 import ApiClient from "./ApiClient";
 import { Order } from "@/types/order";
 import { Payout, VirtualAccount } from "@/types/seller";
-import { normalizeOrders, normalizePayouts, normalizeVirtualAccount } from "@/lib/normalize";
+import { normalizeOrder, normalizeOrders, normalizePayouts, normalizeVirtualAccount } from "@/lib/normalize";
 
 export default class SellerApi {
   private api = ApiClient.getInstance();
@@ -20,7 +20,7 @@ export default class SellerApi {
     const raw = await this.api.post<Record<string, unknown>>(`/api/seller/orders/${id}/dispatch`, {
       trackingNumber,
     });
-    return { ...({} as Order), ...raw } as Order;
+    return normalizeOrder(raw);
   }
 
   async getVirtualAccount(): Promise<VirtualAccount> {

@@ -55,6 +55,10 @@ export interface Order {
   amount: number
   created_at: string
   updated_at: string
+  // Phase 9: escrow release via delivery code. `delivery_code` MUST be stripped
+  // from every response served to a seller (see getOrder / getSellerOrders).
+  delivery_code: string | null
+  delivery_code_attempts: number
 
   buyer?: { display_name: string; avatar_url: string | null }
   seller?: { display_name: string; avatar_url: string | null }

@@ -4,12 +4,15 @@ interface Props {
   status: OrderStatus;
 }
 
+// Phase 9: `delivered` was removed as a distinct step. With code-based escrow
+// release, the seller submits the buyer's delivery code and the order flips
+// straight from `dispatched` to `completed` — no one triggers `delivered`,
+// leaving it on the timeline would look like a stalled order forever.
 const MAIN_STEPS: { key: OrderStatus; label: string }[] = [
   { key: "pending", label: "Pending" },
   { key: "paid", label: "Paid" },
   { key: "in_escrow", label: "In Escrow" },
   { key: "dispatched", label: "Dispatched" },
-  { key: "delivered", label: "Delivered" },
   { key: "completed", label: "Completed" },
 ];
 

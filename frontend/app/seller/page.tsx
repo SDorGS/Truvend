@@ -16,15 +16,18 @@ import Loading from "@/components/common/Loading";
 import RequireAuth from "@/components/auth/RequireAuth";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import useSeller from "@/hooks/useSeller";
 import SellerApi from "@/services/api/SellerApi";
+import OrderApi from "@/services/api/OrderApi";
 import { ApiError } from "@/services/api/ApiClient";
 import { formatCurrency } from "@/lib/utils";
 import type { Order } from "@/types/order";
 import type { Payout, VirtualAccount } from "@/types/seller";
 
 const sellerApi = new SellerApi();
+const orderApi = new OrderApi();
 
 function SellerDashboard() {
   const {
@@ -121,6 +124,7 @@ function SellerDashboard() {
           orders={orders}
           dispatchingId={dispatchingId}
           onDispatch={handleDispatch}
+          onOrderChanged={refetch}
         />
       </div>
 
@@ -213,10 +217,12 @@ function OrdersTable({
   orders,
   dispatchingId,
   onDispatch,
+  onOrderChanged,
 }: {
   orders: Order[];
   dispatchingId: string | null;
   onDispatch: (id: string) => void;
+  onOrderChanged: () => Promise<void> | void;
 }) {
   if (orders.length === 0) {
     return (
@@ -316,6 +322,8 @@ function OrdersTable({
                   >
                     {isDispatching ? "Marking..." : "Dispatch"}
                   </Button>
+                ) : order.status === "dispatched" ? (
+                  <ReleaseEscrowControl orderId={order.id} onReleased={onOrderChanged} />
                 ) : (
                   <span className="text-xs text-gray-400">—</span>
                 )}
@@ -325,6 +333,79 @@ function OrdersTable({
         })}
       </ul>
     </Card>
+  );
+}
+
+// -----------------------------------------------------------------------------
+
+function ReleaseEscrowControl({
+  orderId,
+  onReleased,
+}: {
+  orderId: string;
+  onReleased: () => Promise<void> | void;
+}) {
+  const [code, setCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // 423 LOCKED collapses this control into a static support message — a fresh
+  // input after lockout invites the seller to keep guessing, which is exactly
+  // what the lockout is preventing.
+  const [locked, setLocked] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (submitting || locked) return;
+
+    setErrorMessage(null);
+    setSubmitting(true);
+
+    try {
+      await orderApi.releaseEscrow(orderId, code);
+      await onReleased();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 423) {
+          setLocked(true);
+        }
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage("Could not release escrow.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (locked) {
+    return (
+      <p className="text-xs text-alert-red md:text-right">
+        Locked. Contact support to resolve this order.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col items-stretch gap-2 md:items-end">
+      <div className="flex items-center gap-2">
+        <Input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          inputMode="numeric"
+          pattern="[0-9]{6}"
+          maxLength={6}
+          placeholder="6-digit code"
+          className="w-32 text-center font-mono tracking-widest"
+          aria-label="Delivery code"
+        />
+        <Button type="submit" disabled={submitting || code.length !== 6}>
+          {submitting ? "Releasing..." : "Release"}
+        </Button>
+      </div>
+      {errorMessage && (
+        <p className="text-xs text-alert-red md:text-right">{errorMessage}</p>
+      )}
+    </form>
   );
 }
 

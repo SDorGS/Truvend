@@ -40,10 +40,10 @@ export default class OrderApi {
     return { checkoutLink, orderId };
   }
 
-  async confirmDelivery(id: string): Promise<Order> {
+  async releaseEscrow(id: string, code: string): Promise<Order> {
     const raw = await this.api.post<Record<string, unknown>>(
-      `/api/orders/${id}/confirm-delivery`,
-      {}
+      `/api/orders/${id}/release-escrow`,
+      { code }
     );
     return normalizeOrder(raw);
   }

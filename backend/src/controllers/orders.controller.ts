@@ -41,13 +41,18 @@ export async function getOrderById(
   }
 }
 
-export async function confirmDelivery(
+export async function releaseEscrow(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const order = await ordersService.confirmDelivery(req.params.id, req.user!.id)
+    const { code } = req.body as { code?: string }
+    if (typeof code !== 'string' || code.length === 0) {
+      throw new AppError(400, 'INVALID_INPUT', 'code is required.')
+    }
+
+    const order = await ordersService.releaseEscrow(req.params.id, req.user!.id, code)
     res.json(order)
   } catch (err) {
     next(err)
